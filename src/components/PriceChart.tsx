@@ -1,0 +1,285 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  createChart,
+  createSeriesMarkers,
+  LineSeries,
+  type IChartApi,
+  type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesType,
+  type Time,
+} from "lightweight-charts";
+
+interface Mention {
+  id: string;
+  mentionType: string;
+  post: {
+    id: string;
+    content: string;
+    postedAt: string;
+    url: string;
+    blogger: {
+      xUsername: string;
+      displayName: string;
+      color: string;
+      avatarUrl: string | null;
+    };
+  };
+}
+
+interface PricePoint {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+interface StockDetail {
+  ticker: string;
+  companyName: string;
+  latestPrice: string | null;
+  mentions: Mention[];
+  prices: PricePoint[];
+}
+
+interface Props {
+  ticker: string | null;
+  selectedBlogger: string | null;
+  onMentionClick: (postId: string) => void;
+}
+
+export default function PriceChart({
+  ticker,
+  selectedBlogger,
+  onMentionClick,
+}: Props) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const [data, setData] = useState<StockDetail | null>(null);
+  const [hoveredMention, setHoveredMention] = useState<Mention | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!ticker) {
+      setData(null);
+      return;
+    }
+    fetch(`/api/stocks/${ticker}`)
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {});
+  }, [ticker]);
+
+  const handleChartClick = useCallback(
+    (time: string) => {
+      if (!data) return;
+      const clickDate = time;
+      const mention = data.mentions.find((m) => {
+        const mDate = m.post.postedAt.slice(0, 10);
+        return mDate === clickDate;
+      });
+      if (mention) onMentionClick(mention.post.id);
+    },
+    [data, onMentionClick]
+  );
+
+  useEffect(() => {
+    if (!chartContainerRef.current || !data || data.prices.length === 0) return;
+
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    }
+
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 350,
+      layout: {
+        background: { color: "transparent" },
+        textColor: "#6b6b6b",
+        fontFamily: "var(--font-geist-mono), monospace",
+      },
+      grid: {
+        vertLines: { color: "#e8e0d0" },
+        horzLines: { color: "#e8e0d0" },
+      },
+      rightPriceScale: { borderColor: "#e8e0d0" },
+      timeScale: { borderColor: "#e8e0d0" },
+    });
+
+    chartRef.current = chart;
+
+    const lineSeries = chart.addSeries(LineSeries, {
+      color: "#2d6a4f",
+      lineWidth: 2,
+    });
+
+    seriesRef.current = lineSeries;
+
+    const lineData = data.prices.map((p) => ({
+      time: p.date.slice(0, 10) as Time,
+      value: p.close,
+    }));
+    lineSeries.setData(lineData);
+
+    // Add markers for mentions
+    const mentionsByDate = new Map<string, Mention[]>();
+    for (const m of data.mentions) {
+      if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
+        continue;
+      const date = m.post.postedAt.slice(0, 10);
+      if (!mentionsByDate.has(date)) mentionsByDate.set(date, []);
+      mentionsByDate.get(date)!.push(m);
+    }
+
+    const markers = Array.from(mentionsByDate.entries())
+      .map(([date, mentions]) => ({
+        time: date as Time,
+        position: "aboveBar" as const,
+        color: mentions[0].post.blogger.color,
+        shape: "circle" as const,
+        text: mentions.length > 1 ? `${mentions.length}` : "",
+        size: 2,
+      }))
+      .sort((a, b) => (a.time < b.time ? -1 : 1));
+
+    if (markersRef.current) {
+      markersRef.current.setMarkers([]);
+    }
+    markersRef.current = createSeriesMarkers(lineSeries, markers);
+
+    chart.subscribeCrosshairMove((param) => {
+      if (!param.time || !param.point) {
+        setHoveredMention(null);
+        return;
+      }
+      const dateStr = param.time as string;
+      const mentions = mentionsByDate.get(dateStr);
+      if (mentions && mentions.length > 0) {
+        setHoveredMention(mentions[0]);
+        setTooltipPos({ x: param.point.x, y: param.point.y });
+      } else {
+        setHoveredMention(null);
+      }
+    });
+
+    chart.subscribeClick((param) => {
+      if (param.time) handleChartClick(param.time as string);
+    });
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+        });
+      }
+    };
+    window.addEventListener("resize", handleResize);
+
+    chart.timeScale().fitContent();
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+      markersRef.current = null;
+    };
+  }, [data, selectedBlogger, handleChartClick]);
+
+  if (!ticker) {
+    return (
+      <div className="flex items-center justify-center h-[350px] text-[var(--text-secondary)] text-sm">
+        选择左侧股票查看价格曲线
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-[350px] text-[var(--text-secondary)] text-sm">
+        加载中...
+      </div>
+    );
+  }
+
+  // Group mention counts by blogger
+  const bloggerCounts = new Map<string, { color: string; count: number }>();
+  for (const m of data.mentions) {
+    const key = m.post.blogger.xUsername;
+    const existing = bloggerCounts.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      bloggerCounts.set(key, { color: m.post.blogger.color, count: 1 });
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <span className="font-serif-title text-xl">${data.ticker}</span>
+          {data.companyName && (
+            <span className="ml-2 text-sm text-[var(--text-secondary)]">
+              {data.companyName}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {Array.from(bloggerCounts.entries()).map(([username, info]) => (
+            <span
+              key={username}
+              className="inline-flex items-center gap-1 text-xs bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-full px-2 py-0.5"
+            >
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: info.color }}
+              />
+              @{username} x{info.count}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative">
+        <div ref={chartContainerRef} />
+        {hoveredMention && (
+          <div
+            className="absolute z-10 bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg shadow-md p-3 max-w-[280px] text-xs pointer-events-none"
+            style={{
+              left: Math.min(tooltipPos.x, (chartContainerRef.current?.clientWidth ?? 400) - 300),
+              top: Math.max(0, tooltipPos.y - 80),
+            }}
+          >
+            <div className="flex items-center gap-1 mb-1">
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{
+                  backgroundColor: hoveredMention.post.blogger.color,
+                }}
+              />
+              <span className="font-mono font-bold">
+                @{hoveredMention.post.blogger.xUsername}
+              </span>
+              <span className="text-[var(--text-secondary)] ml-auto">
+                {new Date(hoveredMention.post.postedAt).toLocaleDateString(
+                  "zh-CN"
+                )}
+              </span>
+            </div>
+            <p className="text-[var(--text-primary)] line-clamp-3">
+              {hoveredMention.post.content}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

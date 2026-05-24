@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Blogger {
+  id             String   @id @default(uuid())
+  xUsername      String   @unique @map("x_username")
+  displayName    String   @map("display_name")
+  color          String
+  avatarUrl      String?  @map("avatar_url")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  lastFetchedAt  DateTime? @map("last_fetched_at")
+
+  posts Post[]
+
+  @@map("bloggers")
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  bloggerId String   @map("blogger_id")
+  xPostId   String   @unique @map("x_post_id")
+  content   String
+  postedAt  DateTime @map("posted_at")
+  url       String
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  blogger    Blogger     @relation(fields: [bloggerId], references: [id])
+  postStocks PostStock[]
+
+  @@map("posts")
+}
+
+model Stock {
+  id             String    @id @default(uuid())
+  ticker         String    @unique
+  companyName    String    @default("") @map("company_name")
+  latestPrice    Decimal?  @map("latest_price")
+  priceUpdatedAt DateTime? @map("price_updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  postStocks     PostStock[]
+  priceHistory   PriceHistory[]
+  keywordMappings KeywordMapping[]
+
+  @@map("stocks")
+}
+
+model PostStock {
+  id          String @id @default(uuid())
+  postId      String @map("post_id")
+  stockId     String @map("stock_id")
+  mentionType String @map("mention_type") // "cashtag" | "keyword"
+
+  post  Post  @relation(fields: [postId], references: [id])
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@unique([postId, stockId])
+  @@map("post_stocks")
+}
+
+model PriceHistory {
+  id      String   @id @default(uuid())
+  stockId String   @map("stock_id")
+  date    DateTime @db.Date
+  open    Decimal
+  high    Decimal
+  low     Decimal
+  close   Decimal
+  volume  BigInt
+
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@unique([stockId, date])
+  @@map("price_history")
+}
+
+model KeywordMapping {
+  id      String @id @default(uuid())
+  keyword String @unique
+  stockId String @map("stock_id")
+
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@map("keyword_mappings")
+}
