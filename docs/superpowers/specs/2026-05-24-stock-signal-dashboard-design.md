@@ -226,7 +226,7 @@ Reference: Serenity Signal Ledger screenshot layout.
 │  @user1 🔴   │  │  (TradingView Lightweight Charts)      │   │
 │  @user2 🔵   │  │  colored dots per blogger on curve      │   │
 │  @user3 🟢   │  └────────────────────────────────────────┘   │
-│  [+ Add]     │                                               │
+│  (API添加)    │                                               │
 │              │  ┌────────────────────────────────────────┐   │
 │  Stock List  │  │  Post Timeline                          │   │
 │  NVDA  8     │  │  click marker → scroll to post          │   │
@@ -244,8 +244,8 @@ Reference: Serenity Signal Ledger screenshot layout.
 **Left Sidebar — Blogger List**
 - Each row: avatar + username + color dot
 - Click blogger → filter chart to show only that blogger's markers
-- `[+ Add Blogger]` button (admin only)
-- Enable/disable/remove controls (admin only, hidden from shared users)
+- MVP: bloggers are added via API endpoint (`POST /api/bloggers` with CRON_SECRET auth), no UI button
+- Future: add `[+ Add Blogger]` button with admin auth
 
 **Left Sidebar — Stock List**
 - Sorted by mention count descending
@@ -343,7 +343,7 @@ DATABASE_URL=           # Supabase PostgreSQL connection string
 TWITTER_API_KEY=        # TwitterAPI.io API key
 TELEGRAM_BOT_TOKEN=     # Telegram Bot token
 TELEGRAM_CHAT_ID=       # Push target channel/group ID
-CRON_SECRET=            # Cron endpoint auth key (prevent external calls)
+CRON_SECRET=            # Shared secret for cron endpoints and admin API (Authorization: Bearer <secret>)
 ```
 
 ## 9. MVP Scope vs Future
