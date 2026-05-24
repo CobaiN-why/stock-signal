@@ -1,4 +1,6 @@
-import yahooFinance from "yahoo-finance2";
+import YahooFinanceClass from "yahoo-finance2";
+// v3: default export is the class, must instantiate
+const yahooFinance = new YahooFinanceClass({ suppressNotices: ["ripHistorical"] });
 
 export interface DailyBar {
   date: Date;
