@@ -29,11 +29,11 @@ export async function fetchUserTweets(
   }
 
   const data = await res.json();
-  const tweets: Tweet[] = (data.tweets || []).map(
-    (t: { id: string; text: string; created_at: string }) => ({
+  const tweets: Tweet[] = ((data.data?.tweets ?? data.tweets) || []).map(
+    (t: { id: string; text: string; createdAt?: string; created_at?: string }) => ({
       id: t.id,
       text: t.text,
-      createdAt: t.created_at,
+      createdAt: t.createdAt ?? t.created_at ?? "",
       url: `https://x.com/${username}/status/${t.id}`,
     })
   );
