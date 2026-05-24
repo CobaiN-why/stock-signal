@@ -50,6 +50,8 @@ export async function generateStockAnalysis(
 - 语言干练，判断清晰，有观点
 - 叙事驱动而非列表堆砌
 - 不要用"首先其次最后"、"赋能"等空话
+- 不要使用 Markdown 格式（不要用 #、**、- 列表等），直接用纯文本段落，段落之间空一行
+- 小标题用"一、""二、""三、"这样的中文序号，独占一行即可
 - 总字数控制在 3000-5000 字`;
 
   const res = await fetch(KIMI_API_URL, {

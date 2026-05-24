@@ -45,15 +45,48 @@ function formatVolume(n: number | null): string {
   return n.toLocaleString();
 }
 
+/**
+ * Render analysis text as React nodes.
+ * - Strips markdown syntax (##, **, -, ```)
+ * - Lines matching subtitle patterns (e.g. "一、纵向分析（发展脉络）") rendered bold
+ * - Everything else as plain text paragraphs
+ */
+function renderAnalysis(md: string): React.ReactNode[] {
+  // Clean markdown artifacts
+  const clean = md
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/^[-*]\s+/gm, "• ")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/^---+$/gm, "")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  // Subtitle pattern: lines starting with 一、二、三、 or (一) or 1. style Chinese section headers
+  const subtitleRe = /^[一二三四五六七八九十]+[、.．]\s*.+$/;
+
+  return clean.split("\n").map((line, i) => {
+    if (subtitleRe.test(line.trim())) {
+      return (
+        <span key={i} className="font-bold block mt-4 mb-1">
+          {line}
+          {"\n"}
+        </span>
+      );
+    }
+    return <span key={i}>{line}{"\n"}</span>;
+  });
+}
+
 export default function StockInfo({ ticker }: Props) {
   const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!ticker) {
       setData(null);
-      setExpanded(false);
       return;
     }
     setLoading(true);
@@ -132,26 +165,15 @@ export default function StockInfo({ ticker }: Props) {
         </p>
       )}
 
-      {/* HV Analysis */}
+      {/* HV Analysis — always visible */}
       {data.analysis && (
         <div className="border-t border-[var(--border-soft)] pt-4">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-2 text-sm font-bold text-[var(--accent-green)] hover:underline cursor-pointer"
-          >
-            <span>{expanded ? "▾" : "▸"}</span>
+          <h4 className="text-sm font-bold text-[var(--accent-green)] mb-3">
             纵横分析报告
-          </button>
-          {expanded && (
-            <div className="mt-3 prose prose-sm max-w-none text-[var(--text-primary)]">
-              <div
-                className="text-sm leading-relaxed whitespace-pre-wrap"
-                style={{ maxHeight: "500px", overflowY: "auto" }}
-              >
-                {data.analysis}
-              </div>
-            </div>
-          )}
+          </h4>
+          <div className="text-sm leading-7 text-[var(--text-primary)] whitespace-pre-wrap">
+            {renderAnalysis(data.analysis)}
+          </div>
         </div>
       )}
 

@@ -106,9 +106,17 @@ export default function StockList({ selectedTicker, onSelect }: Props) {
                 )}
               </div>
             </div>
-            <span className="font-mono text-sm font-bold shrink-0 ml-2">
-              {s.latestPrice ? `$${Number(s.latestPrice).toFixed(2)}` : "—"}
-            </span>
+            <div className="shrink-0 ml-2 text-right">
+              {s.latestPrice ? (
+                <span className="font-mono text-sm font-bold">
+                  ${Number(s.latestPrice).toFixed(2)}
+                </span>
+              ) : (
+                <span className="text-xs text-orange-600/80 bg-orange-100 rounded px-1.5 py-0.5">
+                  非美股
+                </span>
+              )}
+            </div>
           </button>
         ))}
         {filtered.length === 0 && (

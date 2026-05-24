@@ -147,7 +147,7 @@ export default function PriceChart({
     }));
     areaSeries.setData(lineData);
 
-    // Red circle markers for mentions (like 图2)
+    // Per-blogger colored markers — stacked positions for same-day mentions
     const mentionsByDate = new Map<string, Mention[]>();
     for (const m of data.mentions) {
       if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
@@ -157,20 +157,38 @@ export default function PriceChart({
       mentionsByDate.get(date)!.push(m);
     }
 
-    const markers = Array.from(mentionsByDate.entries())
-      .map(([date, mentions]) => {
-        // Size proportional to mention count: 1→2, 2→3, 3+→4
-        const sz = Math.min(mentions.length + 1, 4);
-        return {
+    const positions = ["inBar", "aboveBar", "belowBar"] as const;
+    const markers: {
+      time: Time;
+      position: "inBar" | "aboveBar" | "belowBar";
+      color: string;
+      shape: "circle";
+      text: string;
+      size: number;
+    }[] = [];
+
+    for (const [date, mentions] of mentionsByDate) {
+      // Deduplicate by blogger — one marker per blogger per date
+      const seenBloggers = new Map<string, Mention>();
+      for (const m of mentions) {
+        const key = m.post.blogger.xUsername;
+        if (!seenBloggers.has(key)) seenBloggers.set(key, m);
+      }
+      const uniqueBloggers = Array.from(seenBloggers.values());
+
+      uniqueBloggers.forEach((m, i) => {
+        markers.push({
           time: date as Time,
-          position: "inBar" as const,
-          color: `rgba(200, 60, 60, ${Math.min(0.4 + mentions.length * 0.15, 0.85)})`,
-          shape: "circle" as const,
-          text: mentions.length > 1 ? `${mentions.length}` : "",
-          size: sz,
-        };
-      })
-      .sort((a, b) => (a.time < b.time ? -1 : 1));
+          position: positions[Math.min(i, 2)],
+          color: m.post.blogger.color,
+          shape: "circle",
+          text: i === 0 && mentions.length > 1 ? `${mentions.length}` : "",
+          size: 2,
+        });
+      });
+    }
+
+    markers.sort((a, b) => (a.time < b.time ? -1 : 1));
 
     if (markersRef.current) {
       markersRef.current.setMarkers([]);
