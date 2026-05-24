@@ -48,6 +48,7 @@ model Stock {
   postStocks     PostStock[]
   priceHistory   PriceHistory[]
   keywordMappings KeywordMapping[]
+  analysis       StockAnalysis?
 
   @@map("stocks")
 }
@@ -89,4 +90,16 @@ model KeywordMapping {
   stock Stock @relation(fields: [stockId], references: [id])
 
   @@map("keyword_mappings")
+}
+
+model StockAnalysis {
+  id        String   @id @default(uuid())
+  stockId   String   @unique @map("stock_id")
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@map("stock_analyses")
 }

@@ -5,8 +5,8 @@ import Header from "@/components/Header";
 import BloggerList from "@/components/BloggerList";
 import StockList from "@/components/StockList";
 import PriceChart from "@/components/PriceChart";
+import StockInfo from "@/components/StockInfo";
 import PostTimeline from "@/components/PostTimeline";
-import OpinionTape from "@/components/OpinionTape";
 
 export default function Dashboard() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
@@ -24,19 +24,24 @@ export default function Dashboard() {
 
       <div className="flex-1 flex px-6 gap-6 pb-4">
         {/* Left Sidebar */}
-        <aside className="w-[250px] shrink-0 hidden md:block">
-          <BloggerList
-            selectedBlogger={selectedBlogger}
-            onSelect={setSelectedBlogger}
-          />
-          <StockList
-            selectedTicker={selectedTicker}
-            onSelect={setSelectedTicker}
-          />
+        <aside className="w-[260px] shrink-0 hidden md:flex flex-col gap-4">
+          <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm">
+            <BloggerList
+              selectedBlogger={selectedBlogger}
+              onSelect={setSelectedBlogger}
+            />
+          </div>
+          <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm flex-1 min-h-0 flex flex-col">
+            <StockList
+              selectedTicker={selectedTicker}
+              onSelect={setSelectedTicker}
+            />
+          </div>
         </aside>
 
         {/* Main Content */}
         <main className="flex-1 min-w-0 space-y-6">
+          {/* Price Chart */}
           <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm">
             <PriceChart
               ticker={selectedTicker}
@@ -44,15 +49,22 @@ export default function Dashboard() {
               onMentionClick={handleMentionClick}
             />
           </div>
-          <PostTimeline
-            ticker={selectedTicker}
-            selectedBlogger={selectedBlogger}
-            highlightPostId={highlightPostId}
-          />
+
+          {/* Stock Info (replaces old timeline position) */}
+          <StockInfo ticker={selectedTicker} />
         </main>
       </div>
 
-      {/* Mobile Sidebar (visible on small screens) */}
+      {/* Bottom: Mention Timeline (replaces old Opinion Tape) */}
+      <div className="px-6 pb-6">
+        <PostTimeline
+          ticker={selectedTicker}
+          selectedBlogger={selectedBlogger}
+          highlightPostId={highlightPostId}
+        />
+      </div>
+
+      {/* Mobile Sidebar */}
       <div className="md:hidden px-6 pb-4">
         <details className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4">
           <summary className="font-serif-title text-sm cursor-pointer">
@@ -70,8 +82,6 @@ export default function Dashboard() {
           </div>
         </details>
       </div>
-
-      <OpinionTape />
     </div>
   );
 }

@@ -7,6 +7,13 @@ export async function GET(req: NextRequest) {
   const stocks = await prisma.stock.findMany({
     include: {
       _count: { select: { postStocks: true } },
+      postStocks: {
+        select: {
+          post: { select: { postedAt: true } },
+        },
+        orderBy: { post: { postedAt: "desc" } },
+        take: 1,
+      },
     },
     orderBy: { postStocks: { _count: "desc" } },
   });
@@ -18,5 +25,16 @@ export async function GET(req: NextRequest) {
     filtered = stocks.filter((s) => s._count.postStocks >= 3);
   }
 
-  return NextResponse.json(filtered);
+  const result = filtered.map((s) => ({
+    id: s.id,
+    ticker: s.ticker,
+    companyName: s.companyName,
+    latestPrice: s.latestPrice,
+    priceUpdatedAt: s.priceUpdatedAt,
+    createdAt: s.createdAt,
+    lastMentionedAt: s.postStocks[0]?.post.postedAt ?? null,
+    _count: s._count,
+  }));
+
+  return NextResponse.json(result);
 }

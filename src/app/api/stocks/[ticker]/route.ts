@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { fetchStockProfile } from "@/lib/yahoo";
+import { generateStockAnalysis } from "@/lib/kimi";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
   const { ticker } = await params;
@@ -23,6 +25,7 @@ export async function GET(
         },
         orderBy: { post: { postedAt: "desc" } },
       },
+      analysis: true,
     },
   });
 
@@ -30,8 +33,38 @@ export async function GET(
     return NextResponse.json({ error: "Stock not found" }, { status: 404 });
   }
 
+  // Fetch stock profile from Yahoo (cached per request)
+  let profile = null;
+  try {
+    profile = await fetchStockProfile(stock.ticker);
+  } catch {
+    // Yahoo profile fetch is best-effort
+  }
+
+  // Check if analysis exists; if not and KIMI_API_KEY is set, generate it
+  let analysisContent = stock.analysis?.content ?? null;
+  if (!analysisContent && profile && process.env.KIMI_API_KEY) {
+    try {
+      const content = await generateStockAnalysis(stock.ticker, profile);
+      if (content) {
+        await prisma.stockAnalysis.upsert({
+          where: { stockId: stock.id },
+          create: { stockId: stock.id, content },
+          update: { content },
+        });
+        analysisContent = content;
+      }
+    } catch (err) {
+      console.error(`Error generating analysis for ${stock.ticker}:`, err);
+    }
+  }
+
   return NextResponse.json({
-    ...stock,
+    ticker: stock.ticker,
+    companyName: stock.companyName,
+    latestPrice: stock.latestPrice,
+    profile,
+    analysis: analysisContent,
     mentions: stock.postStocks.map((ps) => ({
       id: ps.id,
       mentionType: ps.mentionType,
@@ -56,7 +89,5 @@ export async function GET(
       close: Number(p.close),
       volume: Number(p.volume),
     })),
-    postStocks: undefined,
-    priceHistory: undefined,
   });
 }

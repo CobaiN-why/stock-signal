@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   createChart,
   createSeriesMarkers,
-  LineSeries,
+  AreaSeries,
   type IChartApi,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
@@ -99,36 +99,55 @@ export default function PriceChart({
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 350,
+      height: 380,
       layout: {
         background: { color: "transparent" },
-        textColor: "#6b6b6b",
+        textColor: "#8a8a8a",
         fontFamily: "var(--font-geist-mono), monospace",
+        fontSize: 11,
       },
       grid: {
-        vertLines: { color: "#e8e0d0" },
-        horzLines: { color: "#e8e0d0" },
+        vertLines: { visible: false },
+        horzLines: { color: "#f0ead6", style: 1 },
       },
-      rightPriceScale: { borderColor: "#e8e0d0" },
-      timeScale: { borderColor: "#e8e0d0" },
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: { top: 0.1, bottom: 0.05 },
+      },
+      timeScale: {
+        borderVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+      },
+      crosshair: {
+        vertLine: { color: "#c8c0b0", width: 1, style: 2 },
+        horzLine: { color: "#c8c0b0", width: 1, style: 2 },
+      },
     });
 
     chartRef.current = chart;
 
-    const lineSeries = chart.addSeries(LineSeries, {
-      color: "#2d6a4f",
+    // Area series: green line + gradient fill (like 图2)
+    const areaSeries = chart.addSeries(AreaSeries, {
+      lineColor: "#2d6a4f",
       lineWidth: 2,
+      topColor: "rgba(45, 106, 79, 0.25)",
+      bottomColor: "rgba(45, 106, 79, 0.02)",
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 4,
+      crosshairMarkerBorderColor: "#2d6a4f",
+      crosshairMarkerBackgroundColor: "#fff",
     });
 
-    seriesRef.current = lineSeries;
+    seriesRef.current = areaSeries;
 
     const lineData = data.prices.map((p) => ({
       time: p.date.slice(0, 10) as Time,
       value: p.close,
     }));
-    lineSeries.setData(lineData);
+    areaSeries.setData(lineData);
 
-    // Add markers for mentions
+    // Red circle markers for mentions (like 图2)
     const mentionsByDate = new Map<string, Mention[]>();
     for (const m of data.mentions) {
       if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
@@ -139,20 +158,24 @@ export default function PriceChart({
     }
 
     const markers = Array.from(mentionsByDate.entries())
-      .map(([date, mentions]) => ({
-        time: date as Time,
-        position: "aboveBar" as const,
-        color: mentions[0].post.blogger.color,
-        shape: "circle" as const,
-        text: mentions.length > 1 ? `${mentions.length}` : "",
-        size: 2,
-      }))
+      .map(([date, mentions]) => {
+        // Size proportional to mention count: 1→2, 2→3, 3+→4
+        const sz = Math.min(mentions.length + 1, 4);
+        return {
+          time: date as Time,
+          position: "inBar" as const,
+          color: `rgba(200, 60, 60, ${Math.min(0.4 + mentions.length * 0.15, 0.85)})`,
+          shape: "circle" as const,
+          text: mentions.length > 1 ? `${mentions.length}` : "",
+          size: sz,
+        };
+      })
       .sort((a, b) => (a.time < b.time ? -1 : 1));
 
     if (markersRef.current) {
       markersRef.current.setMarkers([]);
     }
-    markersRef.current = createSeriesMarkers(lineSeries, markers);
+    markersRef.current = createSeriesMarkers(areaSeries, markers);
 
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || !param.point) {
@@ -195,7 +218,7 @@ export default function PriceChart({
 
   if (!ticker) {
     return (
-      <div className="flex items-center justify-center h-[350px] text-[var(--text-secondary)] text-sm">
+      <div className="flex items-center justify-center h-[380px] text-[var(--text-secondary)] text-sm">
         选择左侧股票查看价格曲线
       </div>
     );
@@ -203,7 +226,7 @@ export default function PriceChart({
 
   if (!data) {
     return (
-      <div className="flex items-center justify-center h-[350px] text-[var(--text-secondary)] text-sm">
+      <div className="flex items-center justify-center h-[380px] text-[var(--text-secondary)] text-sm">
         加载中...
       </div>
     );
@@ -229,6 +252,11 @@ export default function PriceChart({
           {data.companyName && (
             <span className="ml-2 text-sm text-[var(--text-secondary)]">
               {data.companyName}
+            </span>
+          )}
+          {data.latestPrice && (
+            <span className="ml-3 font-mono text-lg font-bold">
+              ${Number(data.latestPrice).toFixed(2)}
             </span>
           )}
         </div>
