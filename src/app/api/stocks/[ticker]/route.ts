@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { fetchStockProfile, type StockProfile } from "@/lib/yahoo";
-import { generateStockAnalysis } from "@/lib/kimi";
+import type { StockProfile } from "@/lib/yahoo";
 
-const PROFILE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const CACHE_TTL_MS = 60 * 1000; // 60s in-memory cache
 
 // In-memory response cache — avoids repeated DB round-trips
@@ -38,48 +36,8 @@ export async function GET(
     return NextResponse.json({ error: "Stock not found" }, { status: 404 });
   }
 
-  // --- Profile: DB cache, refresh if missing or >24h ---
-  let profile = stock.profileData as StockProfile | null;
-  const profileStale =
-    !profile ||
-    !stock.profileUpdatedAt ||
-    Date.now() - stock.profileUpdatedAt.getTime() > PROFILE_TTL_MS;
-
-  if (profileStale) {
-    try {
-      const fresh = await fetchStockProfile(stock.ticker);
-      if (fresh) {
-        await prisma.stock.update({
-          where: { id: stock.id },
-          data: {
-            profileData: fresh as object,
-            profileUpdatedAt: new Date(),
-          },
-        });
-        profile = fresh;
-      }
-    } catch {
-      // Yahoo fetch failed — keep existing cache if any
-    }
-  }
-
-  // --- Analysis: permanent cache, generate once if missing ---
-  let analysisContent = stock.analysis?.content ?? null;
-  if (!analysisContent && profile && process.env.KIMI_API_KEY) {
-    try {
-      const content = await generateStockAnalysis(stock.ticker, profile);
-      if (content) {
-        await prisma.stockAnalysis.upsert({
-          where: { stockId: stock.id },
-          create: { stockId: stock.id, content },
-          update: { content },
-        });
-        analysisContent = content;
-      }
-    } catch (err) {
-      console.error(`Kimi analysis error for ${stock.ticker}:`, err);
-    }
-  }
+  const profile = stock.profileData as StockProfile | null;
+  const analysisContent = stock.analysis?.content ?? null;
 
   const response = {
     ticker: stock.ticker,

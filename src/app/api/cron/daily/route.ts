@@ -4,7 +4,10 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 import { fetchUserTweets } from "@/lib/twitter";
 import { identifyStocks, ensureStockExists } from "@/lib/stock-identifier";
 import { sendMention } from "@/lib/telegram";
-import { fetchDailyBars, fetchLatestPrice } from "@/lib/yahoo";
+import { fetchDailyBars, fetchLatestPrice, fetchStockProfile } from "@/lib/yahoo";
+import { generateStockAnalysis } from "@/lib/kimi";
+
+const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * GET/POST /api/cron/daily
@@ -177,6 +180,74 @@ async function handler(req: NextRequest) {
   } catch (err) {
     console.error("update-latest step failed:", err);
     results.updateLatest = { error: String(err) };
+  }
+
+  // --- Step 4: Sync Yahoo profiles ---
+  try {
+    const stocks = await prisma.stock.findMany({
+      where: { postStocks: { some: {} } },
+    });
+    let synced = 0;
+
+    for (const stock of stocks) {
+      const stale =
+        !stock.profileData ||
+        !stock.profileUpdatedAt ||
+        Date.now() - stock.profileUpdatedAt.getTime() > PROFILE_TTL_MS;
+      if (!stale) continue;
+
+      try {
+        const profile = await fetchStockProfile(stock.ticker);
+        if (profile) {
+          await prisma.stock.update({
+            where: { id: stock.id },
+            data: { profileData: profile as object, profileUpdatedAt: new Date() },
+          });
+          synced++;
+        }
+      } catch (err) {
+        console.error(`Error syncing profile for ${stock.ticker}:`, err);
+      }
+    }
+    results.syncProfiles = { synced, total: stocks.length };
+  } catch (err) {
+    console.error("sync-profiles step failed:", err);
+    results.syncProfiles = { error: String(err) };
+  }
+
+  // --- Step 5: Generate Kimi analyses ---
+  try {
+    if (!process.env.KIMI_API_KEY) {
+      results.generateAnalyses = { skipped: "no KIMI_API_KEY" };
+    } else {
+      const stocks = await prisma.stock.findMany({
+        where: { postStocks: { some: {} }, analysis: null },
+        select: { id: true, ticker: true, profileData: true },
+      });
+      let generated = 0;
+
+      for (const stock of stocks) {
+        if (!stock.profileData) continue;
+        try {
+          const content = await generateStockAnalysis(
+            stock.ticker,
+            stock.profileData as unknown as Parameters<typeof generateStockAnalysis>[1]
+          );
+          if (content) {
+            await prisma.stockAnalysis.create({
+              data: { stockId: stock.id, content },
+            });
+            generated++;
+          }
+        } catch (err) {
+          console.error(`Error generating analysis for ${stock.ticker}:`, err);
+        }
+      }
+      results.generateAnalyses = { generated, total: stocks.length };
+    }
+  } catch (err) {
+    console.error("generate-analyses step failed:", err);
+    results.generateAnalyses = { error: String(err) };
   }
 
   return NextResponse.json({ ok: true, ...results });
