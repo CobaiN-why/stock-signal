@@ -40,12 +40,14 @@ export async function identifyStocks(text: string): Promise<StockMention[]> {
   return Array.from(mentions.values());
 }
 
-export async function ensureStockExists(ticker: string): Promise<string> {
+export async function ensureStockExists(
+  ticker: string
+): Promise<{ id: string; isNew: boolean }> {
   const existing = await prisma.stock.findUnique({ where: { ticker } });
-  if (existing) return existing.id;
+  if (existing) return { id: existing.id, isNew: false };
 
   const stock = await prisma.stock.create({
     data: { ticker, companyName: "" },
   });
-  return stock.id;
+  return { id: stock.id, isNew: true };
 }

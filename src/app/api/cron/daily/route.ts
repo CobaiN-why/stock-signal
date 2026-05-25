@@ -61,25 +61,27 @@ async function handler(req: NextRequest) {
           });
 
           for (const mention of mentions) {
-            const stockId = await ensureStockExists(mention.ticker);
+            const { id: stockId, isNew } = await ensureStockExists(
+              mention.ticker
+            );
             await prisma.postStock.create({
               data: { postId: post.id, stockId, mentionType: mention.type },
             });
 
-            const stock = await prisma.stock.findUnique({
-              where: { id: stockId },
-            });
-            await sendMention({
-              ticker: mention.ticker,
-              price: stock?.latestPrice?.toString() ?? null,
-              blogger: blogger.xUsername,
-              postedAt: new Date(tweet.createdAt)
-                .toISOString()
-                .slice(0, 16)
-                .replace("T", " "),
-              content: tweet.text,
-              postUrl: tweet.url,
-            });
+            // Only push Telegram for newly discovered stocks
+            if (isNew) {
+              await sendMention({
+                ticker: mention.ticker,
+                price: null,
+                blogger: blogger.xUsername,
+                postedAt: new Date(tweet.createdAt)
+                  .toISOString()
+                  .slice(0, 16)
+                  .replace("T", " "),
+                content: tweet.text,
+                postUrl: tweet.url,
+              });
+            }
           }
           newPosts++;
         }
