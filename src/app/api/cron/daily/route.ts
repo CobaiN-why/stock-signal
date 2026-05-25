@@ -184,9 +184,7 @@ async function handler(req: NextRequest) {
 
   // --- Step 4: Sync Yahoo profiles ---
   try {
-    const stocks = await prisma.stock.findMany({
-      where: { postStocks: { some: {} } },
-    });
+    const stocks = await prisma.stock.findMany();
     let synced = 0;
 
     for (const stock of stocks) {
@@ -221,7 +219,7 @@ async function handler(req: NextRequest) {
       results.generateAnalyses = { skipped: "no KIMI_API_KEY" };
     } else {
       const stocks = await prisma.stock.findMany({
-        where: { postStocks: { some: {} }, analysis: null },
+        where: { analysis: null },
         select: { id: true, ticker: true, profileData: true },
       });
       let generated = 0;
