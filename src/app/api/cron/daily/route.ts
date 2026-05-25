@@ -157,9 +157,7 @@ async function handler(req: NextRequest) {
 
   // --- Step 3: Update latest prices ---
   try {
-    const stocks = await prisma.stock.findMany({
-      where: { postStocks: { some: {} } },
-    });
+    const stocks = await prisma.stock.findMany();
     let updated = 0;
 
     for (const stock of stocks) {

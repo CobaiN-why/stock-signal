@@ -112,8 +112,8 @@ export default function StockList({ selectedTicker, onSelect }: Props) {
                   ${Number(s.latestPrice).toFixed(2)}
                 </span>
               ) : (
-                <span className="text-xs text-orange-600/80 bg-orange-100 rounded px-1.5 py-0.5">
-                  非美股
+                <span className="text-xs text-[var(--text-secondary)]/60">
+                  —
                 </span>
               )}
             </div>

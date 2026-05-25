@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stock Signal Dashboard
 
-## Getting Started
+Multi-blogger stock mention tracker that monitors X (Twitter) accounts for stock mentions, aggregates them by ticker, and displays interactive price charts with mention markers.
 
-First, run the development server:
+## Features
+
+- Track multiple X bloggers, each with distinct color-coded markers
+- Auto-extract stock tickers via $CASHTAG and keyword matching
+- Interactive price charts (TradingView Lightweight Charts) with clickable mention markers
+- AI-powered stock analysis reports (Kimi/Moonshot)
+- Telegram push notifications for newly discovered stocks
+- Yahoo Finance integration for price data and company profiles
+
+## Tech Stack
+
+Next.js 15 (App Router) · TypeScript · Supabase PostgreSQL · Prisma ORM · TradingView Lightweight Charts · Tailwind CSS · Railway
+
+## Setup
 
 ```bash
+npm install
+cp .env.example .env   # Fill in all required values
+npx prisma db push
+npx prisma db seed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+See `.env.example` for the full list:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `DATABASE_URL` — Supabase PostgreSQL connection string
+- `TWITTER_API_KEY` — TwitterAPI.io key
+- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` — Telegram push (personal chat)
+- `TELEGRAM_GROUP_CHAT_ID` — Telegram push (group/channel, optional)
+- `CRON_SECRET` — Shared secret for cron and admin endpoints
+- `KIMI_API_KEY` — Moonshot Kimi API key for stock analysis
 
-## Learn More
+## Daily Automation
 
-To learn more about Next.js, take a look at the following resources:
+A combined cron endpoint at `/api/cron/daily` runs five steps sequentially:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Fetch posts** — pull new tweets from tracked bloggers, identify stock mentions
+2. **Sync prices** — backfill daily OHLCV bars from Yahoo Finance
+3. **Update latest** — refresh real-time prices
+4. **Sync profiles** — fetch Yahoo company profiles for all stocks (24h cache)
+5. **Generate analyses** — generate Kimi AI analysis for stocks with profile but no analysis (permanent)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Trigger via GET with `?secret=<CRON_SECRET>` or POST with `Authorization: Bearer <CRON_SECRET>`.
 
-## Deploy on Vercel
+Scheduled daily at 02:00 Beijing time via cron-job.org.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Push to `main` branch → Railway auto-deploys via GitHub integration.
