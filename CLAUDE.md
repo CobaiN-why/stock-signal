@@ -46,13 +46,16 @@ src/
 │   ├── cron-auth.ts     # Bearer token + ?secret= query param auth
 │   ├── db.ts            # Prisma client singleton
 │   ├── kimi.ts          # Kimi AI stock analysis (generate once, never refresh)
+│   ├── sentiment.ts     # Bullish/bearish detection (rules + Kimi AI fallback)
 │   ├── stock-identifier.ts  # Cashtag regex + keyword DB lookup
-│   ├── telegram.ts      # Telegram push (only for newly discovered stocks)
+│   ├── telegram.ts      # Telegram push (new stocks, sentiment flips, divergence)
 │   ├── twitter.ts       # TwitterAPI.io fetch
 │   └── yahoo.ts         # Yahoo Finance bars + latest price + profile (24h DB cache)
 └── data/                # keywords.json
 scripts/
-└── backfill-profiles.ts # One-off: backfill missing Yahoo profiles + Kimi analyses
+├── backfill-profiles.ts    # One-off: backfill missing Yahoo profiles + Kimi analyses
+├── backfill-sentiment.ts   # One-off: backfill sentiment for all PostStock records
+└── rerun-ai-sentiment.ts   # One-off: re-run AI sentiment for records where rules don't match
 ```
 
 ## Conventions
@@ -62,7 +65,7 @@ scripts/
 - Cron auth: `Authorization: Bearer <CRON_SECRET>` header, or `?secret=<CRON_SECRET>` query param (GET)
 - Database access only through Prisma client (`src/lib/db.ts`)
 - Environment variables defined in `.env.example`
-- Telegram push only for **newly discovered** stocks (first-time `ensureStockExists`), not for repeat mentions
+- Telegram push for: **newly discovered** stocks (first-time `ensureStockExists`), **sentiment flips** (same blogger changes view on same stock), **new divergence** (bloggers disagree for first time on a stock)
 - Telegram sends to **both** `TELEGRAM_CHAT_ID` (personal) and `TELEGRAM_GROUP_CHAT_ID` (channel) in parallel
 - `stocks/[ticker]` API is **read-only DB** — never calls Yahoo or Kimi; all pre-fetching is done in daily cron
 - Deployment: `git push` to `maomou/stock-signal` (GitHub) → Railway auto-deploys
@@ -79,7 +82,7 @@ scripts/
 
 | Step | Name | What it does |
 |------|------|-------------|
-| 1 | fetch-posts | Pull new tweets, identify stocks, Telegram push for new ones |
+| 1 | fetch-posts | Pull new tweets, identify stocks, detect sentiment (rules + Kimi AI), Telegram push for new stocks / sentiment flips / divergence |
 | 2 | sync-prices | Backfill OHLCV bars from Yahoo Finance |
 | 3 | update-latest | Refresh real-time prices |
 | 4 | sync-profiles | Fetch Yahoo profiles for all stocks missing/stale (24h TTL) |
@@ -90,3 +93,4 @@ scripts/
 | Topic | Path |
 |-------|------|
 | Original design spec | `docs/superpowers/specs/2026-05-24-stock-signal-dashboard-design.md` |
+| Sentiment & divergence spec | `docs/superpowers/specs/2026-05-27-sentiment-analysis-design.md` |

@@ -49,7 +49,7 @@ export default function Dashboard() {
             />
           </div>
 
-          <StockInfo ticker={selectedTicker} />
+          <StockInfo ticker={selectedTicker} onMentionClick={handleMentionClick} />
 
           <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm">
             <PostTimeline

@@ -159,7 +159,7 @@ export default function PriceChart({
     }
 
     const positions = ["inBar", "aboveBar", "belowBar"] as const;
-    type MarkerShape = "circle" | "arrowUp" | "arrowDown";
+    type MarkerShape = "circle";
     const markers: {
       time: Time;
       position: "inBar" | "aboveBar" | "belowBar";
@@ -178,12 +178,7 @@ export default function PriceChart({
       const uniqueBloggers = Array.from(seenBloggers.values());
 
       uniqueBloggers.forEach((m, i) => {
-        const shape: MarkerShape =
-          m.sentiment === "bullish"
-            ? "arrowUp"
-            : m.sentiment === "bearish"
-              ? "arrowDown"
-              : "circle";
+        const shape: MarkerShape = "circle";
         markers.push({
           time: date as Time,
           position: positions[Math.min(i, 2)],

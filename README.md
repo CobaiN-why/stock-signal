@@ -6,9 +6,11 @@ Multi-blogger stock mention tracker that monitors X (Twitter) accounts for stock
 
 - Track multiple X bloggers, each with distinct color-coded markers
 - Auto-extract stock tickers via $CASHTAG and keyword matching
-- Interactive price charts (TradingView Lightweight Charts) with clickable mention markers
+- Interactive price charts (TradingView Lightweight Charts) with sentiment-aware markers (▲ bullish / ▼ bearish)
+- Sentiment detection per tweet (keyword rules + Kimi AI fallback)
+- Blogger opinion divergence module with cumulative return since first mention
 - AI-powered stock analysis reports (Kimi/Moonshot)
-- Telegram push notifications for newly discovered stocks
+- Telegram push notifications for new stocks, sentiment flips, and blogger divergence
 - Yahoo Finance integration for price data and company profiles
 
 ## Tech Stack
@@ -40,7 +42,7 @@ See `.env.example` for the full list:
 
 A combined cron endpoint at `/api/cron/daily` runs five steps sequentially:
 
-1. **Fetch posts** — pull new tweets from tracked bloggers, identify stock mentions
+1. **Fetch posts** — pull new tweets from tracked bloggers, identify stock mentions, detect sentiment, push Telegram on flips/divergence
 2. **Sync prices** — backfill daily OHLCV bars from Yahoo Finance
 3. **Update latest** — refresh real-time prices
 4. **Sync profiles** — fetch Yahoo company profiles for all stocks (24h cache)

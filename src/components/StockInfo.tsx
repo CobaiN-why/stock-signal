@@ -21,6 +21,7 @@ interface StockProfile {
 interface MentionForSentiment {
   sentiment: string | null;
   post: {
+    id: string;
     postedAt: string;
     blogger: {
       xUsername: string;
@@ -42,6 +43,7 @@ interface StockData {
 
 interface Props {
   ticker: string | null;
+  onMentionClick?: (postId: string) => void;
 }
 
 function formatMarketCap(n: number | null): string {
@@ -98,17 +100,19 @@ function SentimentModule({
   mentions,
   cumulativeReturn,
   firstMentionDate,
+  onMentionClick,
 }: {
   mentions: MentionForSentiment[];
   cumulativeReturn: number | null;
   firstMentionDate: string | null;
+  onMentionClick?: (postId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
   // Per-blogger latest sentiment + history
   const bloggerMap = new Map<
     string,
-    { color: string; history: { sentiment: string; date: string }[] }
+    { color: string; history: { sentiment: string; date: string; postId: string }[] }
   >();
 
   const sorted = [...mentions]
@@ -127,26 +131,29 @@ function SentimentModule({
     bloggerMap.get(key)!.history.push({
       sentiment: m.sentiment!,
       date: new Date(m.post.postedAt).toLocaleDateString("zh-CN"),
+      postId: m.post.id,
     });
   }
 
   // Latest sentiment per blogger
   let bullishCount = 0;
   let bearishCount = 0;
-  const flippedBloggers: { username: string; from: string; to: string }[] = [];
+  const flippedBloggers: { username: string; from: string; to: string; date: string; postId: string }[] = [];
 
   for (const [username, data] of bloggerMap) {
     const latest = data.history[data.history.length - 1];
     if (latest.sentiment === "bullish") bullishCount++;
     else bearishCount++;
 
-    // Check for flips
+    // Check for flips — record the most recent flip per blogger
     for (let i = 1; i < data.history.length; i++) {
       if (data.history[i].sentiment !== data.history[i - 1].sentiment) {
         flippedBloggers.push({
           username,
           from: data.history[i - 1].sentiment,
           to: data.history[i].sentiment,
+          date: data.history[i].date,
+          postId: data.history[i].postId,
         });
       }
     }
@@ -214,10 +221,13 @@ function SentimentModule({
             {flippedBloggers.length > 0 && (
               <div className="mt-1 text-xs">
                 {flippedBloggers.map((f, i) => (
-                  <span key={i} className="text-amber-600">
-                    ⚡ @{f.username} 观点反转（{f.from === "bullish" ? "多→空" : "空→多"}）
-                    {i < flippedBloggers.length - 1 ? " " : ""}
-                  </span>
+                  <button
+                    key={i}
+                    className="text-amber-600 hover:text-amber-800 hover:underline cursor-pointer transition-colors mr-2"
+                    onClick={() => onMentionClick?.(f.postId)}
+                  >
+                    ⚡ @{f.username} {f.date} 观点反转（{f.from === "bullish" ? "多→空" : "空→多"}）
+                  </button>
                 ))}
               </div>
             )}
@@ -255,9 +265,11 @@ function SentimentModule({
                     </span>
                     <div className="flex gap-1 flex-wrap">
                       {info.history.map((h, i) => (
-                        <span
+                        <button
                           key={i}
                           title={h.date}
+                          className="hover:opacity-60 cursor-pointer transition-opacity"
+                          onClick={() => onMentionClick?.(h.postId)}
                           style={{
                             color:
                               h.sentiment === "bullish"
@@ -266,7 +278,7 @@ function SentimentModule({
                           }}
                         >
                           {h.sentiment === "bullish" ? "▲" : "▼"}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -280,7 +292,7 @@ function SentimentModule({
   );
 }
 
-export default function StockInfo({ ticker }: Props) {
+export default function StockInfo({ ticker, onMentionClick }: Props) {
   const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -370,6 +382,7 @@ export default function StockInfo({ ticker }: Props) {
         mentions={data.mentions ?? []}
         cumulativeReturn={data.cumulativeReturn ?? null}
         firstMentionDate={data.firstMentionDate ?? null}
+        onMentionClick={onMentionClick}
       />
 
       {/* HV Analysis — always visible */}
