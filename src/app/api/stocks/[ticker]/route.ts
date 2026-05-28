@@ -48,6 +48,7 @@ export async function GET(
     mentions: stock.postStocks.map((ps) => ({
       id: ps.id,
       mentionType: ps.mentionType,
+      sentiment: ps.sentiment,
       post: {
         id: ps.post.id,
         content: ps.post.content,
@@ -69,6 +70,19 @@ export async function GET(
       close: Number(p.close),
       volume: Number(p.volume),
     })),
+    cumulativeReturn: (() => {
+      const mentionDate = stock.createdAt;
+      const firstBar = stock.priceHistory.find(
+        (p) => p.date >= mentionDate
+      );
+      const firstPrice = firstBar ? Number(firstBar.close) : null;
+      const latest = stock.latestPrice ? Number(stock.latestPrice) : null;
+      if (firstPrice && latest && firstPrice > 0) {
+        return ((latest - firstPrice) / firstPrice) * 100;
+      }
+      return null;
+    })(),
+    firstMentionDate: stock.createdAt.toISOString().slice(0, 10),
   };
 
   // Cache for 60s

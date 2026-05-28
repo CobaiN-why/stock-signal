@@ -122,7 +122,7 @@ StockInfo component, inserted between metrics grid / company description and 纵
 - Color: **red for positive** (涨), **green for negative** (跌) — A-share convention
 - Below in small text: `自 2026-03-15 首次提及`
 - Calculation: `(latestPrice - firstMentionClose) / firstMentionClose * 100`
-  - `firstMentionClose`: `PriceHistory` where `stockId = X AND date >= Stock.createdAt` ORDER BY date ASC LIMIT 1, take `close`
+  - `firstMentionClose`: first `PriceHistory` record where `date >= Stock.createdAt` (sorted ASC), take `close`. This ensures we use the price on or after the first mention date, not the earliest price in history.
   - `latestPrice`: `Stock.latestPrice`
 
 #### Summary card (right side)

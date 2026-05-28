@@ -15,6 +15,7 @@ import {
 interface Mention {
   id: string;
   mentionType: string;
+  sentiment: string | null;
   post: {
     id: string;
     content: string;
@@ -158,17 +159,17 @@ export default function PriceChart({
     }
 
     const positions = ["inBar", "aboveBar", "belowBar"] as const;
+    type MarkerShape = "circle" | "arrowUp" | "arrowDown";
     const markers: {
       time: Time;
       position: "inBar" | "aboveBar" | "belowBar";
       color: string;
-      shape: "circle";
+      shape: MarkerShape;
       text: string;
       size: number;
     }[] = [];
 
     for (const [date, mentions] of mentionsByDate) {
-      // Deduplicate by blogger — one marker per blogger per date
       const seenBloggers = new Map<string, Mention>();
       for (const m of mentions) {
         const key = m.post.blogger.xUsername;
@@ -177,11 +178,17 @@ export default function PriceChart({
       const uniqueBloggers = Array.from(seenBloggers.values());
 
       uniqueBloggers.forEach((m, i) => {
+        const shape: MarkerShape =
+          m.sentiment === "bullish"
+            ? "arrowUp"
+            : m.sentiment === "bearish"
+              ? "arrowDown"
+              : "circle";
         markers.push({
           time: date as Time,
           position: positions[Math.min(i, 2)],
           color: m.post.blogger.color,
-          shape: "circle",
+          shape,
           text: i === 0 && mentions.length > 1 ? `${mentions.length}` : "",
           size: 2,
         });
@@ -314,6 +321,16 @@ export default function PriceChart({
               <span className="font-mono font-bold">
                 @{hoveredMention.post.blogger.xUsername}
               </span>
+              {hoveredMention.sentiment && (
+                <span
+                  className="text-xs px-1 rounded"
+                  style={{
+                    color: hoveredMention.sentiment === "bullish" ? "#dc2626" : "#16a34a",
+                  }}
+                >
+                  {hoveredMention.sentiment === "bullish" ? "看多" : "看空"}
+                </span>
+              )}
               <span className="text-[var(--text-secondary)] ml-auto">
                 {new Date(hoveredMention.post.postedAt).toLocaleDateString(
                   "zh-CN"

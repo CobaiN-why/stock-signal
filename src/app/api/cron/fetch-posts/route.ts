@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { fetchUserTweets } from "@/lib/twitter";
 import { identifyStocks, ensureStockExists } from "@/lib/stock-identifier";
-import { sendMention } from "@/lib/telegram";
+import { sendMention, sendSentimentFlip, sendDivergence } from "@/lib/telegram";
+import { detectSentiment } from "@/lib/sentiment";
 
 export async function POST(req: NextRequest) {
   const authError = verifyCronAuth(req);
@@ -44,11 +45,14 @@ export async function POST(req: NextRequest) {
         for (const mention of mentions) {
           const { id: stockId, isNew } = await ensureStockExists(mention.ticker);
 
+          const sentiment = await detectSentiment(tweet.text, mention.ticker);
+
           await prisma.postStock.create({
             data: {
               postId: post.id,
               stockId,
               mentionType: mention.type,
+              sentiment,
             },
           });
 
@@ -62,6 +66,97 @@ export async function POST(req: NextRequest) {
               content: tweet.text,
               postUrl: tweet.url,
             });
+          }
+
+          // Sentiment change detection
+          if (sentiment) {
+            // Flip check: same blogger, same stock, previous sentiment differs
+            const previousPost = await prisma.postStock.findFirst({
+              where: {
+                stockId,
+                sentiment: { not: null },
+                post: { bloggerId: blogger.id },
+                id: { not: post.id },
+              },
+              orderBy: { post: { postedAt: "desc" } },
+              select: { sentiment: true },
+            });
+
+            if (previousPost?.sentiment && previousPost.sentiment !== sentiment) {
+              await sendSentimentFlip({
+                ticker: mention.ticker,
+                blogger: blogger.xUsername,
+                previousSentiment: previousPost.sentiment,
+                currentSentiment: sentiment,
+                content: tweet.text,
+                postUrl: tweet.url,
+              });
+            }
+
+            // Divergence check: do bloggers now disagree?
+            const latestByBlogger = await prisma.$queryRaw<
+              { sentiment: string }[]
+            >`
+              SELECT DISTINCT ON (p.blogger_id) ps.sentiment
+              FROM post_stocks ps
+              JOIN posts p ON p.id = ps.post_id
+              WHERE ps.stock_id = ${stockId}
+                AND ps.sentiment IS NOT NULL
+              ORDER BY p.blogger_id, p.posted_at DESC
+            `;
+
+            const sentiments = new Set(latestByBlogger.map((r) => r.sentiment));
+            if (sentiments.has("bullish") && sentiments.has("bearish")) {
+              // Check if this is newly divergent (without current post, was it homogeneous?)
+              const previousByBlogger = await prisma.$queryRaw<
+                { sentiment: string }[]
+              >`
+                SELECT DISTINCT ON (p.blogger_id) ps.sentiment
+                FROM post_stocks ps
+                JOIN posts p ON p.id = ps.post_id
+                WHERE ps.stock_id = ${stockId}
+                  AND ps.sentiment IS NOT NULL
+                  AND ps.id != (
+                    SELECT id FROM post_stocks
+                    WHERE post_id = ${post.id} AND stock_id = ${stockId}
+                    LIMIT 1
+                  )
+                ORDER BY p.blogger_id, p.posted_at DESC
+              `;
+
+              const prevSentiments = new Set(previousByBlogger.map((r) => r.sentiment));
+              const wasHomogeneous = prevSentiments.size <= 1;
+
+              if (wasHomogeneous) {
+                const bullishBloggers: string[] = [];
+                const bearishBloggers: string[] = [];
+
+                const detailedLatest = await prisma.$queryRaw<
+                  { sentiment: string; x_username: string }[]
+                >`
+                  SELECT DISTINCT ON (p.blogger_id) ps.sentiment, b.x_username
+                  FROM post_stocks ps
+                  JOIN posts p ON p.id = ps.post_id
+                  JOIN bloggers b ON b.id = p.blogger_id
+                  WHERE ps.stock_id = ${stockId}
+                    AND ps.sentiment IS NOT NULL
+                  ORDER BY p.blogger_id, p.posted_at DESC
+                `;
+
+                for (const r of detailedLatest) {
+                  if (r.sentiment === "bullish") bullishBloggers.push(r.x_username);
+                  else bearishBloggers.push(r.x_username);
+                }
+
+                await sendDivergence({
+                  ticker: mention.ticker,
+                  bullishBloggers,
+                  bearishBloggers,
+                  content: tweet.text,
+                  postUrl: tweet.url,
+                });
+              }
+            }
           }
         }
 

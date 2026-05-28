@@ -60,6 +60,7 @@ model PostStock {
   postId      String @map("post_id")
   stockId     String @map("stock_id")
   mentionType String @map("mention_type") // "cashtag" | "keyword"
+  sentiment   String? @map("sentiment")  // "bullish" | "bearish" | null
 
   post  Post  @relation(fields: [postId], references: [id])
   stock Stock @relation(fields: [stockId], references: [id])
