@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { fetchUserTweets } from "@/lib/twitter";
 import { identifyStocks, ensureStockExists } from "@/lib/stock-identifier";
-import { sendMention } from "@/lib/telegram";
+import { sendMention, sendSentimentFlip, sendDivergence } from "@/lib/telegram";
+import { detectSentiment } from "@/lib/sentiment";
 import { fetchDailyBars, fetchLatestPrice, fetchStockProfile } from "@/lib/yahoo";
 import { generateStockAnalysis } from "@/lib/kimi";
 
@@ -15,19 +16,7 @@ const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
  * Supports GET for easy external cron service integration (e.g. cron-job.org)
  * Auth via ?secret= query param (GET) or Authorization header (POST)
  */
-async function handler(req: NextRequest) {
-  // Support auth via query param for GET requests (cron-job.org style)
-  const secretParam = req.nextUrl.searchParams.get("secret");
-  if (secretParam) {
-    const expected = process.env.CRON_SECRET;
-    if (!expected || secretParam !== expected) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  } else {
-    const authError = verifyCronAuth(req);
-    if (authError) return authError;
-  }
-
+async function runDailyJob() {
   const results: Record<string, unknown> = {};
 
   // --- Step 1: Fetch posts ---
@@ -64,26 +53,107 @@ async function handler(req: NextRequest) {
           });
 
           for (const mention of mentions) {
-            const { id: stockId, isNew } = await ensureStockExists(
-              mention.ticker
-            );
+            const { id: stockId, isNew } = await ensureStockExists(mention.ticker);
+
+            const sentiment = await detectSentiment(tweet.text, mention.ticker);
+
             await prisma.postStock.create({
-              data: { postId: post.id, stockId, mentionType: mention.type },
+              data: { postId: post.id, stockId, mentionType: mention.type, sentiment },
             });
 
-            // Only push Telegram for newly discovered stocks
             if (isNew) {
               await sendMention({
                 ticker: mention.ticker,
                 price: null,
                 blogger: blogger.xUsername,
-                postedAt: new Date(tweet.createdAt)
-                  .toISOString()
-                  .slice(0, 16)
-                  .replace("T", " "),
+                postedAt: new Date(tweet.createdAt).toISOString().slice(0, 16).replace("T", " "),
                 content: tweet.text,
                 postUrl: tweet.url,
               });
+            }
+
+            if (sentiment) {
+              const previousPost = await prisma.postStock.findFirst({
+                where: {
+                  stockId,
+                  sentiment: { not: null },
+                  post: { bloggerId: blogger.id },
+                  id: { not: post.id },
+                },
+                orderBy: { post: { postedAt: "desc" } },
+                select: { sentiment: true },
+              });
+
+              if (previousPost?.sentiment && previousPost.sentiment !== sentiment) {
+                await sendSentimentFlip({
+                  ticker: mention.ticker,
+                  blogger: blogger.xUsername,
+                  previousSentiment: previousPost.sentiment,
+                  currentSentiment: sentiment,
+                  content: tweet.text,
+                  postUrl: tweet.url,
+                });
+              }
+
+              const latestByBlogger = await prisma.$queryRaw<
+                { sentiment: string }[]
+              >`
+                SELECT DISTINCT ON (p.blogger_id) ps.sentiment
+                FROM post_stocks ps
+                JOIN posts p ON p.id = ps.post_id
+                WHERE ps.stock_id = ${stockId}
+                  AND ps.sentiment IS NOT NULL
+                ORDER BY p.blogger_id, p.posted_at DESC
+              `;
+
+              const sentiments = new Set(latestByBlogger.map((r) => r.sentiment));
+              if (sentiments.has("bullish") && sentiments.has("bearish")) {
+                const previousByBlogger = await prisma.$queryRaw<
+                  { sentiment: string }[]
+                >`
+                  SELECT DISTINCT ON (p.blogger_id) ps.sentiment
+                  FROM post_stocks ps
+                  JOIN posts p ON p.id = ps.post_id
+                  WHERE ps.stock_id = ${stockId}
+                    AND ps.sentiment IS NOT NULL
+                    AND ps.id != (
+                      SELECT id FROM post_stocks
+                      WHERE post_id = ${post.id} AND stock_id = ${stockId}
+                      LIMIT 1
+                    )
+                  ORDER BY p.blogger_id, p.posted_at DESC
+                `;
+
+                const prevSentiments = new Set(previousByBlogger.map((r) => r.sentiment));
+                if (prevSentiments.size <= 1) {
+                  const detailedLatest = await prisma.$queryRaw<
+                    { sentiment: string; x_username: string }[]
+                  >`
+                    SELECT DISTINCT ON (p.blogger_id) ps.sentiment, b.x_username
+                    FROM post_stocks ps
+                    JOIN posts p ON p.id = ps.post_id
+                    JOIN bloggers b ON b.id = p.blogger_id
+                    WHERE ps.stock_id = ${stockId}
+                      AND ps.sentiment IS NOT NULL
+                    ORDER BY p.blogger_id, p.posted_at DESC
+                  `;
+
+                  const bullishBloggers: string[] = [];
+                  const bearishBloggers: string[] = [];
+                  for (const r of detailedLatest) {
+                    if (r.sentiment === "bullish") bullishBloggers.push(r.x_username);
+                    else bearishBloggers.push(r.x_username);
+                  }
+
+                  await sendDivergence({
+                    ticker: mention.ticker,
+                    bullishBloggers,
+                    bearishBloggers,
+                    content: tweet.text,
+                    postUrl: tweet.url,
+                  });
+                }
+              }
             }
           }
           newPosts++;
@@ -246,7 +316,26 @@ async function handler(req: NextRequest) {
     results.generateAnalyses = { error: String(err) };
   }
 
-  return NextResponse.json({ ok: true, ...results });
+  return results;
+}
+
+async function handler(req: NextRequest) {
+  // Support auth via query param for GET requests (cron-job.org style)
+  const secretParam = req.nextUrl.searchParams.get("secret");
+  if (secretParam) {
+    const expected = process.env.CRON_SECRET;
+    if (!expected || secretParam !== expected) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } else {
+    const authError = verifyCronAuth(req);
+    if (authError) return authError;
+  }
+
+  // Return immediately so cron-job.org doesn't timeout; job runs in background
+  runDailyJob().catch((err) => console.error("daily job failed:", err));
+
+  return NextResponse.json({ ok: true, status: "running" });
 }
 
 export const GET = handler;
