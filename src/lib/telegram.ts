@@ -35,6 +35,17 @@ export async function sendMention(mention: MentionNotification): Promise<void> {
   await sendToTargets(token, targets, text);
 }
 
+export async function sendAlert(message: string): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return;
+  const targets = [
+    process.env.TELEGRAM_CHAT_ID,
+    process.env.TELEGRAM_GROUP_CHAT_ID,
+  ].filter(Boolean) as string[];
+  if (targets.length === 0) return;
+  await sendToTargets(token, targets, message);
+}
+
 function sendToTargets(token: string, targets: string[], text: string) {
   return Promise.all(
     targets.map((chatId) =>

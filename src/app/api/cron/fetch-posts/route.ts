@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { fetchUserTweets } from "@/lib/twitter";
 import { identifyStocks, ensureStockExists } from "@/lib/stock-identifier";
-import { sendMention, sendSentimentFlip, sendDivergence } from "@/lib/telegram";
+import { sendMention, sendSentimentFlip, sendDivergence, sendAlert } from "@/lib/telegram";
 import { detectSentiment } from "@/lib/sentiment";
 
 export async function POST(req: NextRequest) {
@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
   });
 
   let totalNew = 0;
+  const fetchErrors: { username: string; message: string }[] = [];
 
   for (const blogger of bloggers) {
     try {
@@ -169,7 +170,15 @@ export async function POST(req: NextRequest) {
       });
     } catch (err) {
       console.error(`Error fetching tweets for @${blogger.xUsername}:`, err);
+      fetchErrors.push({ username: blogger.xUsername, message: String(err) });
     }
+  }
+
+  if (fetchErrors.length > 0) {
+    const lines = fetchErrors.map((e) => `• @${e.username}: ${e.message.slice(0, 120)}`);
+    await sendAlert(
+      [`🚨 fetch-posts 出错 (${fetchErrors.length}/${bloggers.length} 个博主失败)`, "", ...lines].join("\n")
+    ).catch(() => {});
   }
 
   return NextResponse.json({ processed: bloggers.length, newPosts: totalNew });

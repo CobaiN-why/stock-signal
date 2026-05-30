@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { fetchUserTweets } from "@/lib/twitter";
 import { identifyStocks, ensureStockExists } from "@/lib/stock-identifier";
-import { sendMention, sendSentimentFlip, sendDivergence } from "@/lib/telegram";
+import { sendMention, sendSentimentFlip, sendDivergence, sendAlert } from "@/lib/telegram";
 import { detectSentiment } from "@/lib/sentiment";
 import { fetchDailyBars, fetchLatestPrice, fetchStockProfile } from "@/lib/yahoo";
 import { generateStockAnalysis } from "@/lib/kimi";
@@ -25,6 +25,7 @@ async function runDailyJob() {
       where: { isActive: true },
     });
     let newPosts = 0;
+    const fetchErrors: { username: string; message: string }[] = [];
 
     for (const blogger of bloggers) {
       try {
@@ -165,8 +166,17 @@ async function runDailyJob() {
         });
       } catch (err) {
         console.error(`Error fetching tweets for @${blogger.xUsername}:`, err);
+        fetchErrors.push({ username: blogger.xUsername, message: String(err) });
       }
     }
+
+    if (fetchErrors.length > 0) {
+      const lines = fetchErrors.map((e) => `• @${e.username}: ${e.message.slice(0, 120)}`);
+      await sendAlert(
+        [`🚨 fetch-posts 出错 (${fetchErrors.length}/${bloggers.length} 个博主失败)`, "", ...lines].join("\n")
+      ).catch(() => {});
+    }
+
     results.fetchPosts = { bloggers: bloggers.length, newPosts };
   } catch (err) {
     console.error("fetch-posts step failed:", err);

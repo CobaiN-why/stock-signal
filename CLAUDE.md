@@ -31,8 +31,8 @@ src/
 ├── app/
 │   ├── api/
 │   │   ├── cron/
-│   │   │   ├── daily/          # Combined job: 5 steps (see Daily Cron below)
-│   │   │   ├── fetch-posts/    # Fetch tweets, identify stocks, push Telegram for new stocks
+│   │   │   ├── daily/          # Combined job: 5 steps (see Daily Cron below); returns 200 immediately, job runs in background
+│   │   │   ├── fetch-posts/    # Fetch tweets, identify stocks, push Telegram for new stocks / sentiment flips / divergence
 │   │   │   ├── sync-prices/    # Backfill OHLCV from Yahoo Finance
 │   │   │   └── update-latest/  # Refresh latest prices
 │   │   ├── bloggers/   # Blogger CRUD
@@ -79,6 +79,8 @@ scripts/
 | Stock detail API response | In-memory Map | 60 seconds |
 
 ## Daily Cron Steps (`/api/cron/daily`)
+
+> Endpoint returns `{ ok: true, status: "running" }` immediately (HTTP 200). Job runs asynchronously in background. Step results appear in Railway logs, not in the HTTP response.
 
 | Step | Name | What it does |
 |------|------|-------------|
