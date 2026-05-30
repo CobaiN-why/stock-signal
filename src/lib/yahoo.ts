@@ -1,12 +1,22 @@
 /**
- * Stock price & profile data via Finnhub API (official, cloud-friendly)
- * Replaces yahoo-finance2 which was blocked on Railway IPs.
- * Free tier: 60 req/min — sufficient for daily cron over ~50 stocks.
+ * Stock price & profile data — hybrid approach (cloud-friendly, fully free):
+ *   - fetchDailyBars   → Twelve Data  (800 req/day free; historical daily OHLCV)
+ *   - fetchLatestPrice → Finnhub      (60 req/min free; real-time quote)
+ *   - fetchStockProfile→ Finnhub      (60 req/min free; company profile + metrics)
+ *
+ * Background: yahoo-finance2 (scraper) gets TCP-blocked on Railway IPs unpredictably.
  */
 
+const TWELVE_BASE = "https://api.twelvedata.com";
 const FINNHUB_BASE = "https://finnhub.io/api/v1";
 
-function getToken(): string {
+function getTwelveKey(): string {
+  const key = process.env.TWELVE_DATA_API_KEY;
+  if (!key) throw new Error("TWELVE_DATA_API_KEY not set");
+  return key;
+}
+
+function getFinnhubToken(): string {
   const token = process.env.FINNHUB_API_KEY;
   if (!token) throw new Error("FINNHUB_API_KEY not set");
   return token;
@@ -26,42 +36,41 @@ export async function fetchDailyBars(
   from: Date,
   to: Date
 ): Promise<DailyBar[]> {
-  const token = getToken();
-  const fromTs = Math.floor(from.getTime() / 1000);
-  const toTs = Math.floor(to.getTime() / 1000);
+  const key = getTwelveKey();
+  const startDate = from.toISOString().slice(0, 10);
+  const endDate = to.toISOString().slice(0, 10);
 
   const url =
-    `${FINNHUB_BASE}/stock/candle?symbol=${ticker}&resolution=D` +
-    `&from=${fromTs}&to=${toTs}&token=${token}`;
+    `${TWELVE_BASE}/time_series?symbol=${ticker}&interval=1day` +
+    `&start_date=${startDate}&end_date=${endDate}&outputsize=5000&apikey=${key}`;
 
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Finnhub candle error: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new Error(`Twelve Data error: ${res.status} ${await res.text()}`);
 
   const data = (await res.json()) as {
-    s: string;
-    t: number[];
-    o: number[];
-    h: number[];
-    l: number[];
-    c: number[];
-    v: number[];
+    status?: string;
+    code?: number;
+    message?: string;
+    values?: { datetime: string; open: string; high: string; low: string; close: string; volume: string }[];
   };
 
-  if (data.s !== "ok") return []; // "no_data" — normal for weekends/holidays
+  if (data.status === "error" || data.code) {
+    throw new Error(`Twelve Data error: ${data.message ?? JSON.stringify(data)}`);
+  }
 
-  return data.t.map((ts, i) => ({
-    date: new Date(ts * 1000),
-    open: data.o[i],
-    high: data.h[i],
-    low: data.l[i],
-    close: data.c[i],
-    volume: data.v[i],
+  return (data.values ?? []).map((v) => ({
+    date: new Date(v.datetime),
+    open: parseFloat(v.open),
+    high: parseFloat(v.high),
+    low: parseFloat(v.low),
+    close: parseFloat(v.close),
+    volume: parseFloat(v.volume),
   }));
 }
 
 export async function fetchLatestPrice(ticker: string): Promise<number | null> {
   try {
-    const token = getToken();
+    const token = getFinnhubToken();
     const res = await fetch(`${FINNHUB_BASE}/quote?symbol=${ticker}&token=${token}`);
     if (!res.ok) return null;
     const data = (await res.json()) as { c: number };
@@ -89,7 +98,7 @@ export interface StockProfile {
 
 export async function fetchStockProfile(ticker: string): Promise<StockProfile | null> {
   try {
-    const token = getToken();
+    const token = getFinnhubToken();
 
     const [profileRes, metricRes] = await Promise.all([
       fetch(`${FINNHUB_BASE}/stock/profile2?symbol=${ticker}&token=${token}`),
