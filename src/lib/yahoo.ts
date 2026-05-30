@@ -44,18 +44,28 @@ export async function fetchDailyBars(
     `${TWELVE_BASE}/time_series?symbol=${ticker}&interval=1day` +
     `&start_date=${startDate}&end_date=${endDate}&outputsize=5000&apikey=${key}`;
 
+  // Twelve Data returns a JSON body even on error (incl. HTTP 404), so parse first.
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Twelve Data error: ${res.status} ${await res.text()}`);
-
-  const data = (await res.json()) as {
+  let data: {
     status?: string;
     code?: number;
     message?: string;
     values?: { datetime: string; open: string; high: string; low: string; close: string; volume: string }[];
   };
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`Twelve Data error: ${res.status} (non-JSON response)`);
+  }
 
   if (data.status === "error" || data.code) {
-    throw new Error(`Twelve Data error: ${data.message ?? JSON.stringify(data)}`);
+    const msg = data.message ?? JSON.stringify(data);
+    // 404 = symbol not found or not on free plan → degrade to no data, don't crash the run
+    if (data.code === 404) {
+      console.warn(`Twelve Data: skipping ${ticker} — ${msg}`);
+      return [];
+    }
+    throw new Error(`Twelve Data error: ${msg}`);
   }
 
   return (data.values ?? []).map((v) => ({
