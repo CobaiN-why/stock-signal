@@ -16,6 +16,17 @@ function getTwelveKey(): string {
   return key;
 }
 
+// Twelve Data free tier: 8 credits/min. Throttle calls to stay under the limit
+// (8s interval ⇒ max 7.5 req/min). Module-level state shared across one job run.
+const TWELVE_MIN_INTERVAL_MS = 8000;
+let lastTwelveCallAt = 0;
+
+async function throttleTwelve(): Promise<void> {
+  const wait = TWELVE_MIN_INTERVAL_MS - (Date.now() - lastTwelveCallAt);
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastTwelveCallAt = Date.now();
+}
+
 function getFinnhubToken(): string {
   const token = process.env.FINNHUB_API_KEY;
   if (!token) throw new Error("FINNHUB_API_KEY not set");
@@ -45,6 +56,7 @@ export async function fetchDailyBars(
     `&start_date=${startDate}&end_date=${endDate}&outputsize=5000&apikey=${key}`;
 
   // Twelve Data returns a JSON body even on error (incl. HTTP 404), so parse first.
+  await throttleTwelve();
   const res = await fetch(url);
   let data: {
     status?: string;
