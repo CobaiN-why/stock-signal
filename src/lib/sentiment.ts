@@ -8,10 +8,24 @@ const BULLISH_EN = [
   "\\bbuy\\b", "\\blong\\b", "\\bbullish\\b", "\\bcalls\\b", "\\bundervalued\\b",
   "\\bmoon\\b", "\\bbreakout\\b", "\\baccumulate\\b", "\\bupside\\b", "\\brally\\b",
   "\\bbottom\\b", "\\bdip buy\\b", "\\bloading\\b", "\\bgoing up\\b", "\\bbuy the dip\\b",
+  // gains / multiplier signals — high precision, very unlikely to be bearish
+  "\\b\\d+x(?:'d|d|ing)?\\b",          // 10x, 100x, 10x'd, 3xing
+  "\\bup \\d[\\d,.%-]*%",               // up 200%, up 83.3%, up 1,000%, up 200-1000%
+  "\\b\\d+[,\\d]*% gain",               // 200% gain
+  "\\bhundreds? of percent\\b",
+  "\\bthousands? of percent\\b",
+  "\\bhundred(?:s)?x\\b",
+  // monopoly / structural moat language — high precision for this blogger's style
+  "\\bsole source\\b",
+  "\\bkingmaker\\b",
+  "\\bcompelling\\b",
 ];
 
 const BEARISH_EN = [
-  "\\bsell\\b", "\\bshort\\b", "\\bbearish\\b", "\\bputs\\b", "\\bovervalued\\b",
+  "\\bsell\\b",
+  // "short" only as a financial position; avoid "short timeframe/term/period/run/time/while/stint"
+  "\\bshort(?!\\s+(?:timeframe|term|period|run|time|while|stint|game|story|squeeze))\\b",
+  "\\bbearish\\b", "\\bputs\\b", "\\bovervalued\\b",
   "\\bcrash\\b", "\\bdump\\b", "\\bdownside\\b", "\\bbubble\\b", "\\btrim\\b",
   "\\bgoing down\\b", "\\bshorting\\b",
 ];
@@ -111,7 +125,33 @@ Tweet: "$QQQ was down today. In other news I had pizza for lunch."
 Ticker: QQQ
 Answer: unknown
 
+Tweet: "Software bros happy about a 10-15% recovery after getting wiped 25-60%. Meanwhile AI names from $SNDK to $AAOI are casually up 200-1000%."
+Ticker: AAOI
+Answer: bullish
+Reason: The author is contrasting losers (software stocks) with winners ($AAOI up 200-1000%). $AAOI is explicitly in the winning group — clearly bullish.
+
+Tweet: "Sold my $NVDA position last month. Rotating into $AXTI and $AAOI which I think have more room to run."
+Ticker: NVDA
+Answer: bearish
+Reason: Author sold NVDA to buy other stocks — expressing a negative/exit view on NVDA specifically.
+
+Tweet: "Back at $44 EUR, European media said $SOI was an 'overvalued stock' and 'purely speculative'. Traditions analysts had no clue. $SOI is now up 342% since."
+Ticker: SOI
+Answer: bullish
+Reason: The author is QUOTING critics to prove them wrong. The author's own view is clearly bullish — $SOI is up 342% since their call.
+
+Tweet: "A publication called my $RPI idea 'mass stupidity' and said shares would 'come crashing back to reality'. Earnings came out? Blew away expectations."
+Ticker: RPI
+Answer: bullish
+Reason: Author is defending their bullish thesis by showing critics were wrong. The quoted bearish language belongs to critics, not the author.
+
 Reply with exactly one word: bullish, bearish, or unknown. Nothing else.`;
+
+    // highlight the target ticker in the text so the model focuses on it
+    const highlighted = text.slice(0, 600).replace(
+      new RegExp(`\\$${ticker}`, "gi"),
+      `★$${ticker}★`
+    );
 
     const res = await fetch(KIMI_API_URL, {
       method: "POST",
@@ -128,7 +168,7 @@ Reply with exactly one word: bullish, bearish, or unknown. Nothing else.`;
           },
           {
             role: "user",
-            content: `Tweet about $${ticker}:\n"${text.slice(0, 500)}"`,
+            content: `Target ticker: $${ticker} (marked as ★$${ticker}★ in the tweet)\n\nTweet:\n"${highlighted}"`,
           },
         ],
         temperature: 0,
