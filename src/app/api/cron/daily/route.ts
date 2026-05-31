@@ -7,6 +7,7 @@ import { sendMention, sendSentimentFlip, sendDivergence, sendAlert } from "@/lib
 import { detectSentiment } from "@/lib/sentiment";
 import { fetchDailyBars, fetchLatestPrice, fetchStockProfile } from "@/lib/yahoo";
 import { generateStockAnalysis } from "@/lib/kimi";
+import { buildStockResponse } from "@/lib/stock-response";
 
 const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -324,6 +325,31 @@ async function runDailyJob() {
   } catch (err) {
     console.error("generate-analyses step failed:", err);
     results.generateAnalyses = { error: String(err) };
+  }
+
+  // --- Step 6: Pre-warm DB response cache ---
+  try {
+    const allStocks = await prisma.stock.findMany({ select: { ticker: true } });
+    let warmed = 0;
+
+    for (const s of allStocks) {
+      try {
+        const data = await buildStockResponse(s.ticker);
+        if (data) {
+          await prisma.stock.update({
+            where: { ticker: s.ticker },
+            data: { cachedResponse: data as object },
+          });
+          warmed++;
+        }
+      } catch (err) {
+        console.error(`Error pre-warming cache for ${s.ticker}:`, err);
+      }
+    }
+    results.prewarmCache = { warmed, total: allStocks.length };
+  } catch (err) {
+    console.error("prewarm-cache step failed:", err);
+    results.prewarmCache = { error: String(err) };
   }
 
   return results;

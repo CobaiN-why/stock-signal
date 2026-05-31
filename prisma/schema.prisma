@@ -45,6 +45,7 @@ model Stock {
   priceUpdatedAt   DateTime? @map("price_updated_at")
   profileData      Json?     @map("profile_data")
   profileUpdatedAt DateTime? @map("profile_updated_at")
+  cachedResponse   Json?     @map("cached_response")
   createdAt        DateTime  @default(now()) @map("created_at")
 
   postStocks     PostStock[]
