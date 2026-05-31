@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import type { StockProfile } from "@/lib/yahoo";
 
-const CACHE_TTL_MS = 60 * 1000; // 60s in-memory cache
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12h — data only updates once per day via cron
 
-// In-memory response cache — avoids repeated DB round-trips
+// In-memory response cache — cleared on server restart (deploy), so long TTL is safe
 const responseCache = new Map<string, { data: object; ts: number }>();
 
 export async function GET(
@@ -85,7 +85,6 @@ export async function GET(
     firstMentionDate: stock.createdAt.toISOString().slice(0, 10),
   };
 
-  // Cache for 60s
   responseCache.set(key, { data: response, ts: Date.now() });
 
   return NextResponse.json(response);
