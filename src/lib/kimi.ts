@@ -1,6 +1,5 @@
-import type { StockProfile } from "./yahoo";
-
-const KIMI_API_URL = "https://api.moonshot.cn/v1/chat/completions";
+import { getAiModel, getAiProvider } from "@/lib/ai";
+import type { StockProfile } from "@/lib/market-data";
 
 /**
  * Generate HV analysis for a stock using Kimi API.
@@ -11,8 +10,8 @@ export async function generateStockAnalysis(
   ticker: string,
   profile: StockProfile
 ): Promise<string> {
-  const apiKey = process.env.KIMI_API_KEY;
-  if (!apiKey) throw new Error("KIMI_API_KEY not set");
+  const provider = getAiProvider("analysis");
+  if (!provider) throw new Error("ANALYSIS_AI_PROVIDER is not configured");
 
   const prompt = `你是一位资深的股票研究分析师。请对以下股票进行深度分析，采用"纵横分析法"：
 
@@ -54,31 +53,18 @@ export async function generateStockAnalysis(
 - 小标题用"一、""二、""三、"这样的中文序号，独占一行即可
 - 总字数控制在 3000-5000 字`;
 
-  const res = await fetch(KIMI_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "moonshot-v1-32k",
-      messages: [
-        {
-          role: "system",
-          content: "你是一位深谙资本市场的研究分析师，擅长结合历史发展脉络和竞争格局进行深度分析。",
-        },
-        { role: "user", content: prompt },
-      ],
+  return provider.chat(
+    [
+      {
+        role: "system",
+        content: "你是一位深谙资本市场的研究分析师，擅长结合历史发展脉络和竞争格局进行深度分析。",
+      },
+      { role: "user", content: prompt },
+    ],
+    {
+      model: getAiModel("analysis") ?? (provider.name === "kimi" ? "moonshot-v1-32k" : undefined),
       temperature: 0.7,
-      max_tokens: 8192,
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Kimi API error: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? "";
+      maxTokens: 8192,
+    }
+  );
 }

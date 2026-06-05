@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import type { Market } from "@/lib/markets";
 
 interface Post {
   id: string;
@@ -13,16 +14,18 @@ interface Post {
     color: string;
     avatarUrl: string | null;
   };
-  postStocks: { stock: { ticker: string } }[];
+  postStocks: { stock: { ticker: string; market: string } }[];
 }
 
 interface Props {
+  market: Market;
   ticker: string | null;
   selectedBlogger: string | null;
   highlightPostId: string | null;
 }
 
 export default function PostTimeline({
+  market,
   ticker,
   selectedBlogger,
   highlightPostId,
@@ -32,18 +35,15 @@ export default function PostTimeline({
   const postRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
-    if (!ticker) {
-      setPosts([]);
-      return;
-    }
-    const params = new URLSearchParams({ ticker });
+    if (!ticker) return;
+    const params = new URLSearchParams({ ticker, market });
     if (selectedBlogger) params.set("blogger", selectedBlogger);
 
     fetch(`/api/posts?${params}`)
       .then((r) => r.json())
       .then((d) => setPosts(d.posts || []))
       .catch(() => {});
-  }, [ticker, selectedBlogger]);
+  }, [ticker, selectedBlogger, market]);
 
   useEffect(() => {
     if (!highlightPostId) return;
@@ -104,7 +104,7 @@ export default function PostTimeline({
                     key={ps.stock.ticker}
                     className="text-xs bg-[var(--border-soft)] rounded px-1.5 py-0.5 font-mono"
                   >
-                    ${ps.stock.ticker}
+                    {ps.stock.market === "US" ? "$" : ""}{ps.stock.ticker}
                   </span>
                 ))}
               </div>

@@ -1,16 +1,24 @@
 import { prisma } from "@/lib/db";
-import type { StockProfile } from "@/lib/yahoo";
+import { DEFAULT_MARKET, normalizeMarket } from "@/lib/markets";
+import type { StockProfile } from "@/lib/market-data";
 
-export async function buildStockResponse(ticker: string): Promise<object | null> {
+export async function buildStockResponse(
+  ticker: string,
+  marketValue: string | null | undefined = DEFAULT_MARKET
+): Promise<object | null> {
   const key = ticker.toUpperCase();
+  const market = normalizeMarket(marketValue);
 
   const stock = await prisma.stock.findUnique({
-    where: { ticker: key },
+    where: { market_ticker: { market, ticker: key } },
     include: {
       priceHistory: { orderBy: { date: "asc" } },
       postStocks: {
         include: { post: { include: { blogger: true } } },
         orderBy: { post: { postedAt: "desc" } },
+      },
+      sector: {
+        include: { etfs: { orderBy: { rank: "asc" } } },
       },
       analysis: true,
     },
@@ -22,10 +30,27 @@ export async function buildStockResponse(ticker: string): Promise<object | null>
 
   return {
     ticker: stock.ticker,
+    market: stock.market,
+    assetType: stock.assetType,
+    currency: stock.currency,
     companyName: stock.companyName,
     latestPrice: stock.latestPrice,
     profile,
     analysis: stock.analysis?.content ?? null,
+    sector: stock.sector
+      ? {
+          slug: stock.sector.slug,
+          name: stock.sector.name,
+          description: stock.sector.description,
+          etfs: stock.sector.etfs.map((etf) => ({
+            ticker: etf.ticker,
+            market: etf.market,
+            name: etf.name,
+            rationale: etf.rationale,
+            rank: etf.rank,
+          })),
+        }
+      : null,
     mentions: stock.postStocks.map((ps) => ({
       id: ps.id,
       mentionType: ps.mentionType,

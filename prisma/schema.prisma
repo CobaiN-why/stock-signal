@@ -11,6 +11,7 @@ model Blogger {
   id             String   @id @default(uuid())
   xUsername      String   @unique @map("x_username")
   displayName    String   @map("display_name")
+  market         String   @default("US")
   color          String
   avatarUrl      String?  @map("avatar_url")
   isActive       Boolean  @default(true) @map("is_active")
@@ -33,26 +34,36 @@ model Post {
 
   blogger    Blogger     @relation(fields: [bloggerId], references: [id])
   postStocks PostStock[]
+  postSectors PostSector[]
 
   @@map("posts")
 }
 
 model Stock {
   id               String    @id @default(uuid())
-  ticker           String    @unique
+  ticker           String
+  market           String    @default("US")
+  assetType        String    @default("STOCK") @map("asset_type") // "STOCK" | "ETF"
+  currency         String    @default("USD")
+  dataSymbol       String?   @map("data_symbol")
   companyName      String    @default("") @map("company_name")
   latestPrice      Decimal?  @map("latest_price")
   priceUpdatedAt   DateTime? @map("price_updated_at")
   profileData      Json?     @map("profile_data")
   profileUpdatedAt DateTime? @map("profile_updated_at")
   cachedResponse   Json?     @map("cached_response")
+  sectorId         String?   @map("sector_id")
   createdAt        DateTime  @default(now()) @map("created_at")
 
   postStocks     PostStock[]
   priceHistory   PriceHistory[]
   keywordMappings KeywordMapping[]
   analysis       StockAnalysis?
+  sector         Sector? @relation(fields: [sectorId], references: [id])
+  signalEvents   SignalEvent[]
 
+  @@unique([market, ticker])
+  @@index([market, assetType])
   @@map("stocks")
 }
 
@@ -88,11 +99,13 @@ model PriceHistory {
 
 model KeywordMapping {
   id      String @id @default(uuid())
-  keyword String @unique
+  market  String @default("US")
+  keyword String
   stockId String @map("stock_id")
 
   stock Stock @relation(fields: [stockId], references: [id])
 
+  @@unique([market, keyword])
   @@map("keyword_mappings")
 }
 
@@ -106,4 +119,83 @@ model StockAnalysis {
   stock Stock @relation(fields: [stockId], references: [id])
 
   @@map("stock_analyses")
+}
+
+model Sector {
+  id          String   @id @default(uuid())
+  market      String   @default("US")
+  slug        String
+  name        String
+  description String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  stocks      Stock[]
+  keywords    SectorKeyword[]
+  etfs        SectorEtf[]
+  postSectors PostSector[]
+  signalEvents SignalEvent[]
+
+  @@unique([market, slug])
+  @@map("sectors")
+}
+
+model SectorKeyword {
+  id       String @id @default(uuid())
+  keyword  String
+  sectorId String @map("sector_id")
+
+  sector Sector @relation(fields: [sectorId], references: [id])
+
+  @@unique([sectorId, keyword])
+  @@map("sector_keywords")
+}
+
+model SectorEtf {
+  id        String @id @default(uuid())
+  sectorId  String @map("sector_id")
+  ticker    String
+  market    String @default("US")
+  name      String
+  rationale String @default("")
+  rank      Int    @default(0)
+
+  sector Sector @relation(fields: [sectorId], references: [id])
+
+  @@unique([sectorId, ticker])
+  @@map("sector_etfs")
+}
+
+model PostSector {
+  id         String @id @default(uuid())
+  postId     String @map("post_id")
+  sectorId   String @map("sector_id")
+  confidence Decimal @default(1)
+  evidence   String @default("")
+
+  post   Post   @relation(fields: [postId], references: [id])
+  sector Sector @relation(fields: [sectorId], references: [id])
+
+  @@unique([postId, sectorId])
+  @@map("post_sectors")
+}
+
+model SignalEvent {
+  id        String   @id @default(uuid())
+  eventType String   @map("event_type")
+  severity  String   @default("info")
+  market    String   @default("US")
+  title     String
+  body      String   @db.Text
+  sourceUrl String?  @map("source_url")
+  metadata  Json?
+  stockId   String?  @map("stock_id")
+  sectorId  String?  @map("sector_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  stock  Stock?  @relation(fields: [stockId], references: [id])
+  sector Sector? @relation(fields: [sectorId], references: [id])
+
+  @@index([market, createdAt])
+  @@index([eventType, createdAt])
+  @@map("signal_events")
 }

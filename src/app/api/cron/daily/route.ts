@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
-import { fetchUserTweets } from "@/lib/twitter";
-import { identifyStocks, ensureStockExists } from "@/lib/stock-identifier";
-import { sendMention, sendSentimentFlip, sendDivergence, sendAlert } from "@/lib/telegram";
-import { detectSentiment } from "@/lib/sentiment";
-import { fetchDailyBars, fetchLatestPrice, fetchStockProfile } from "@/lib/yahoo";
+import { ingestPostsFromActiveBloggers } from "@/lib/ingest";
+import { fetchDailyBars, fetchLatestPrice, fetchStockProfile } from "@/lib/market-data";
 import { generateStockAnalysis } from "@/lib/kimi";
 import { buildStockResponse } from "@/lib/stock-response";
+import { normalizeMarket } from "@/lib/markets";
 
 const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -22,163 +20,7 @@ async function runDailyJob() {
 
   // --- Step 1: Fetch posts ---
   try {
-    const bloggers = await prisma.blogger.findMany({
-      where: { isActive: true },
-    });
-    let newPosts = 0;
-    const fetchErrors: { username: string; message: string }[] = [];
-
-    for (const blogger of bloggers) {
-      try {
-        const tweets = await fetchUserTweets(
-          blogger.xUsername,
-          blogger.lastFetchedAt ?? undefined
-        );
-
-        for (const tweet of tweets) {
-          const exists = await prisma.post.findUnique({
-            where: { xPostId: tweet.id },
-          });
-          if (exists) continue;
-
-          const mentions = await identifyStocks(tweet.text);
-          if (mentions.length === 0) continue;
-
-          const post = await prisma.post.create({
-            data: {
-              bloggerId: blogger.id,
-              xPostId: tweet.id,
-              content: tweet.text,
-              postedAt: new Date(tweet.createdAt),
-              url: tweet.url,
-            },
-          });
-
-          for (const mention of mentions) {
-            const { id: stockId, isNew } = await ensureStockExists(mention.ticker);
-
-            const sentiment = await detectSentiment(tweet.text, mention.ticker);
-
-            await prisma.postStock.create({
-              data: { postId: post.id, stockId, mentionType: mention.type, sentiment },
-            });
-
-            if (isNew) {
-              await sendMention({
-                ticker: mention.ticker,
-                price: null,
-                blogger: blogger.xUsername,
-                postedAt: new Date(tweet.createdAt).toISOString().slice(0, 16).replace("T", " "),
-                content: tweet.text,
-                postUrl: tweet.url,
-              });
-            }
-
-            if (sentiment) {
-              const previousPost = await prisma.postStock.findFirst({
-                where: {
-                  stockId,
-                  sentiment: { not: null },
-                  post: { bloggerId: blogger.id },
-                  id: { not: post.id },
-                },
-                orderBy: { post: { postedAt: "desc" } },
-                select: { sentiment: true },
-              });
-
-              if (previousPost?.sentiment && previousPost.sentiment !== sentiment) {
-                await sendSentimentFlip({
-                  ticker: mention.ticker,
-                  blogger: blogger.xUsername,
-                  previousSentiment: previousPost.sentiment,
-                  currentSentiment: sentiment,
-                  content: tweet.text,
-                  postUrl: tweet.url,
-                });
-              }
-
-              const latestByBlogger = await prisma.$queryRaw<
-                { sentiment: string }[]
-              >`
-                SELECT DISTINCT ON (p.blogger_id) ps.sentiment
-                FROM post_stocks ps
-                JOIN posts p ON p.id = ps.post_id
-                WHERE ps.stock_id = ${stockId}
-                  AND ps.sentiment IS NOT NULL
-                ORDER BY p.blogger_id, p.posted_at DESC
-              `;
-
-              const sentiments = new Set(latestByBlogger.map((r) => r.sentiment));
-              if (sentiments.has("bullish") && sentiments.has("bearish")) {
-                const previousByBlogger = await prisma.$queryRaw<
-                  { sentiment: string }[]
-                >`
-                  SELECT DISTINCT ON (p.blogger_id) ps.sentiment
-                  FROM post_stocks ps
-                  JOIN posts p ON p.id = ps.post_id
-                  WHERE ps.stock_id = ${stockId}
-                    AND ps.sentiment IS NOT NULL
-                    AND ps.id != (
-                      SELECT id FROM post_stocks
-                      WHERE post_id = ${post.id} AND stock_id = ${stockId}
-                      LIMIT 1
-                    )
-                  ORDER BY p.blogger_id, p.posted_at DESC
-                `;
-
-                const prevSentiments = new Set(previousByBlogger.map((r) => r.sentiment));
-                if (prevSentiments.size <= 1) {
-                  const detailedLatest = await prisma.$queryRaw<
-                    { sentiment: string; x_username: string }[]
-                  >`
-                    SELECT DISTINCT ON (p.blogger_id) ps.sentiment, b.x_username
-                    FROM post_stocks ps
-                    JOIN posts p ON p.id = ps.post_id
-                    JOIN bloggers b ON b.id = p.blogger_id
-                    WHERE ps.stock_id = ${stockId}
-                      AND ps.sentiment IS NOT NULL
-                    ORDER BY p.blogger_id, p.posted_at DESC
-                  `;
-
-                  const bullishBloggers: string[] = [];
-                  const bearishBloggers: string[] = [];
-                  for (const r of detailedLatest) {
-                    if (r.sentiment === "bullish") bullishBloggers.push(r.x_username);
-                    else bearishBloggers.push(r.x_username);
-                  }
-
-                  await sendDivergence({
-                    ticker: mention.ticker,
-                    bullishBloggers,
-                    bearishBloggers,
-                    content: tweet.text,
-                    postUrl: tweet.url,
-                  });
-                }
-              }
-            }
-          }
-          newPosts++;
-        }
-
-        await prisma.blogger.update({
-          where: { id: blogger.id },
-          data: { lastFetchedAt: new Date() },
-        });
-      } catch (err) {
-        console.error(`Error fetching tweets for @${blogger.xUsername}:`, err);
-        fetchErrors.push({ username: blogger.xUsername, message: String(err) });
-      }
-    }
-
-    if (fetchErrors.length > 0) {
-      const lines = fetchErrors.map((e) => `• @${e.username}: ${e.message.slice(0, 120)}`);
-      await sendAlert(
-        [`🚨 fetch-posts 出错 (${fetchErrors.length}/${bloggers.length} 个博主失败)`, "", ...lines].join("\n")
-      ).catch(() => {});
-    }
-
-    results.fetchPosts = { bloggers: bloggers.length, newPosts };
+    results.fetchPosts = await ingestPostsFromActiveBloggers();
   } catch (err) {
     console.error("fetch-posts step failed:", err);
     results.fetchPosts = { error: String(err) };
@@ -203,7 +45,16 @@ async function runDailyJob() {
         const to = new Date();
         if (from >= to) continue;
 
-        const bars = await fetchDailyBars(stock.ticker, from, to);
+        const bars = await fetchDailyBars(
+          {
+            ticker: stock.ticker,
+            market: normalizeMarket(stock.market),
+            assetType: stock.assetType === "ETF" ? "ETF" : "STOCK",
+            dataSymbol: stock.dataSymbol,
+          },
+          from,
+          to
+        );
         for (const bar of bars) {
           await prisma.priceHistory.upsert({
             where: { stockId_date: { stockId: stock.id, date: bar.date } },
@@ -243,7 +94,12 @@ async function runDailyJob() {
 
     for (const stock of stocks) {
       try {
-        const price = await fetchLatestPrice(stock.ticker);
+        const price = await fetchLatestPrice({
+          ticker: stock.ticker,
+          market: normalizeMarket(stock.market),
+          assetType: stock.assetType === "ETF" ? "ETF" : "STOCK",
+          dataSymbol: stock.dataSymbol,
+        });
         if (price !== null) {
           await prisma.stock.update({
             where: { id: stock.id },
@@ -274,7 +130,12 @@ async function runDailyJob() {
       if (!stale) continue;
 
       try {
-        const profile = await fetchStockProfile(stock.ticker);
+        const profile = await fetchStockProfile({
+          ticker: stock.ticker,
+          market: normalizeMarket(stock.market),
+          assetType: stock.assetType === "ETF" ? "ETF" : "STOCK",
+          dataSymbol: stock.dataSymbol,
+        });
         if (profile) {
           await prisma.stock.update({
             where: { id: stock.id },
@@ -294,8 +155,8 @@ async function runDailyJob() {
 
   // --- Step 5: Generate Kimi analyses ---
   try {
-    if (!process.env.KIMI_API_KEY) {
-      results.generateAnalyses = { skipped: "no KIMI_API_KEY" };
+    if (!process.env.KIMI_API_KEY && !process.env.DEEPSEEK_API_KEY) {
+      results.generateAnalyses = { skipped: "no AI provider API key" };
     } else {
       const stocks = await prisma.stock.findMany({
         where: { analysis: null },
@@ -329,15 +190,15 @@ async function runDailyJob() {
 
   // --- Step 6: Pre-warm DB response cache ---
   try {
-    const allStocks = await prisma.stock.findMany({ select: { ticker: true } });
+    const allStocks = await prisma.stock.findMany({ select: { ticker: true, market: true } });
     let warmed = 0;
 
     for (const s of allStocks) {
       try {
-        const data = await buildStockResponse(s.ticker);
+        const data = await buildStockResponse(s.ticker, normalizeMarket(s.market));
         if (data) {
           await prisma.stock.update({
-            where: { ticker: s.ticker },
+            where: { market_ticker: { market: normalizeMarket(s.market), ticker: s.ticker } },
             data: { cachedResponse: data as object },
           });
           warmed++;

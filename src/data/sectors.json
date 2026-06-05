@@ -1,0 +1,67 @@
+[
+  {
+    "market": "US",
+    "slug": "semiconductors",
+    "name": "半导体",
+    "description": "芯片设计、晶圆制造、设备、存储和先进封装相关标的。",
+    "keywords": ["semiconductor", "chip", "gpu", "asic", "foundry", "wafer", "半导体", "芯片", "晶圆", "先进封装"],
+    "stockTickers": ["NVDA", "AMD", "INTC", "AVGO", "QCOM", "MU", "AMAT", "LRCX", "KLAC", "ASML", "MRVL", "ON", "TSM"],
+    "etfs": [
+      { "ticker": "SOXX", "name": "iShares Semiconductor ETF", "rationale": "美股半导体龙头敞口", "rank": 1 },
+      { "ticker": "SMH", "name": "VanEck Semiconductor ETF", "rationale": "集中覆盖半导体核心权重股", "rank": 2 },
+      { "ticker": "XSD", "name": "SPDR S&P Semiconductor ETF", "rationale": "相对均衡的半导体组合", "rank": 3 }
+    ]
+  },
+  {
+    "market": "US",
+    "slug": "ai_infrastructure",
+    "name": "AI 基础设施",
+    "description": "AI 算力、数据中心、网络、存储和上游基础设施。",
+    "keywords": ["ai infrastructure", "datacenter", "data center", "compute", "inference", "training cluster", "算力", "数据中心", "推理", "训练集群"],
+    "stockTickers": ["NVDA", "AVGO", "AMD", "MRVL", "SMCI", "MU"],
+    "etfs": [
+      { "ticker": "AIQ", "name": "Global X Artificial Intelligence & Technology ETF", "rationale": "AI 产业链宽基敞口", "rank": 1 },
+      { "ticker": "BOTZ", "name": "Global X Robotics & Artificial Intelligence ETF", "rationale": "AI 与自动化主题组合", "rank": 2 },
+      { "ticker": "IGV", "name": "iShares Expanded Tech-Software Sector ETF", "rationale": "AI 应用软件侧敞口", "rank": 3 }
+    ]
+  },
+  {
+    "market": "US",
+    "slug": "electric_vehicles",
+    "name": "电动车",
+    "description": "整车、智能驾驶、电池和电动车供应链。",
+    "keywords": ["ev", "electric vehicle", "battery", "autonomous driving", "电动车", "新能源汽车", "电池", "自动驾驶"],
+    "stockTickers": ["TSLA"],
+    "etfs": [
+      { "ticker": "DRIV", "name": "Global X Autonomous & Electric Vehicles ETF", "rationale": "智能驾驶和电动车主题", "rank": 1 },
+      { "ticker": "LIT", "name": "Global X Lithium & Battery Tech ETF", "rationale": "锂电和电池供应链敞口", "rank": 2 },
+      { "ticker": "IDRV", "name": "iShares Self-Driving EV and Tech ETF", "rationale": "自动驾驶和电动车组合", "rank": 3 }
+    ]
+  },
+  {
+    "market": "US",
+    "slug": "mega_cap_tech",
+    "name": "大型科技",
+    "description": "美股大型平台型科技公司和互联网基础设施。",
+    "keywords": ["big tech", "mega cap tech", "cloud", "platform", "大型科技", "互联网平台", "云计算"],
+    "stockTickers": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NFLX"],
+    "etfs": [
+      { "ticker": "QQQ", "name": "Invesco QQQ Trust", "rationale": "纳指大型科技核心敞口", "rank": 1 },
+      { "ticker": "XLK", "name": "Technology Select Sector SPDR Fund", "rationale": "美股科技行业龙头组合", "rank": 2 },
+      { "ticker": "VGT", "name": "Vanguard Information Technology ETF", "rationale": "低费率科技行业敞口", "rank": 3 }
+    ]
+  },
+  {
+    "market": "US",
+    "slug": "broad_market",
+    "name": "宽基指数",
+    "description": "面向指数、基金和宏观市场观点的宽基配置。",
+    "keywords": ["index fund", "etf", "s&p 500", "nasdaq", "qqq", "spy", "指数基金", "宽基", "纳指", "标普"],
+    "stockTickers": [],
+    "etfs": [
+      { "ticker": "SPY", "name": "SPDR S&P 500 ETF Trust", "rationale": "标普 500 核心宽基", "rank": 1 },
+      { "ticker": "VOO", "name": "Vanguard S&P 500 ETF", "rationale": "低费率标普 500 敞口", "rank": 2 },
+      { "ticker": "QQQ", "name": "Invesco QQQ Trust", "rationale": "纳指 100 成长敞口", "rank": 3 }
+    ]
+  }
+]

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
-import { fetchDailyBars } from "@/lib/yahoo";
+import { fetchDailyBars } from "@/lib/market-data";
+import { normalizeMarket } from "@/lib/markets";
 
 export async function POST(req: NextRequest) {
   const authError = verifyCronAuth(req);
@@ -27,7 +28,16 @@ export async function POST(req: NextRequest) {
       const to = new Date();
       if (from >= to) continue;
 
-      const bars = await fetchDailyBars(stock.ticker, from, to);
+      const bars = await fetchDailyBars(
+        {
+          ticker: stock.ticker,
+          market: normalizeMarket(stock.market),
+          assetType: stock.assetType === "ETF" ? "ETF" : "STOCK",
+          dataSymbol: stock.dataSymbol,
+        },
+        from,
+        to
+      );
 
       for (const bar of bars) {
         await prisma.priceHistory.upsert({

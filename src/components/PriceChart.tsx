@@ -11,6 +11,7 @@ import {
   type SeriesType,
   type Time,
 } from "lightweight-charts";
+import type { Market } from "@/lib/markets";
 
 interface Mention {
   id: string;
@@ -40,6 +41,8 @@ interface PricePoint {
 
 interface StockDetail {
   ticker: string;
+  market: string;
+  currency: string;
   companyName: string;
   latestPrice: string | null;
   mentions: Mention[];
@@ -47,12 +50,14 @@ interface StockDetail {
 }
 
 interface Props {
+  market: Market;
   ticker: string | null;
   selectedBlogger: string | null;
   onMentionClick: (postId: string) => void;
 }
 
 export default function PriceChart({
+  market,
   ticker,
   selectedBlogger,
   onMentionClick,
@@ -66,15 +71,12 @@ export default function PriceChart({
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    if (!ticker) {
-      setData(null);
-      return;
-    }
-    fetch(`/api/stocks/${ticker}`)
+    if (!ticker) return;
+    fetch(`/api/stocks/${ticker}?market=${market}`)
       .then((r) => r.json())
       .then(setData)
       .catch(() => {});
-  }, [ticker]);
+  }, [ticker, market]);
 
   const handleChartClick = useCallback(
     (time: string) => {
@@ -159,7 +161,7 @@ export default function PriceChart({
     }
 
     const positions = ["inBar", "aboveBar", "belowBar"] as const;
-    type MarkerShape = "circle";
+    type MarkerShape = "circle" | "arrowUp" | "arrowDown";
     const markers: {
       time: Time;
       position: "inBar" | "aboveBar" | "belowBar";
@@ -178,7 +180,12 @@ export default function PriceChart({
       const uniqueBloggers = Array.from(seenBloggers.values());
 
       uniqueBloggers.forEach((m, i) => {
-        const shape: MarkerShape = "circle";
+        const shape: MarkerShape =
+          m.sentiment === "bullish"
+            ? "arrowUp"
+            : m.sentiment === "bearish"
+              ? "arrowDown"
+              : "circle";
         markers.push({
           time: date as Time,
           position: positions[Math.min(i, 2)],
@@ -205,8 +212,12 @@ export default function PriceChart({
       const dateStr = param.time as string;
       const mentions = mentionsByDate.get(dateStr);
       if (mentions && mentions.length > 0) {
+        const width = chartContainerRef.current?.clientWidth ?? 400;
         setHoveredMention(mentions[0]);
-        setTooltipPos({ x: param.point.x, y: param.point.y });
+        setTooltipPos({
+          x: Math.min(param.point.x, width - 300),
+          y: Math.max(0, param.point.y - 80),
+        });
       } else {
         setHoveredMention(null);
       }
@@ -268,7 +279,9 @@ export default function PriceChart({
     <div>
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
         <div>
-          <span className="font-serif-title text-xl">${data.ticker}</span>
+          <span className="font-serif-title text-xl">
+            {data.market === "US" ? "$" : ""}{data.ticker}
+          </span>
           {data.companyName && (
             <span className="ml-2 text-sm text-[var(--text-secondary)]">
               {data.companyName}
@@ -276,7 +289,7 @@ export default function PriceChart({
           )}
           {data.latestPrice && (
             <span className="ml-3 font-mono text-lg font-bold">
-              ${Number(data.latestPrice).toFixed(2)}
+              {data.currency === "USD" ? "$" : ""}{Number(data.latestPrice).toFixed(2)}
             </span>
           )}
         </div>
@@ -302,8 +315,8 @@ export default function PriceChart({
           <div
             className="absolute z-10 bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg shadow-md p-3 max-w-[280px] text-xs pointer-events-none"
             style={{
-              left: Math.min(tooltipPos.x, (chartContainerRef.current?.clientWidth ?? 400) - 300),
-              top: Math.max(0, tooltipPos.y - 80),
+              left: tooltipPos.x,
+              top: tooltipPos.y,
             }}
           >
             <div className="flex items-center gap-1 mb-1">

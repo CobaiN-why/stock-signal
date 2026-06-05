@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Market } from "@/lib/markets";
 
 interface Stock {
   id: string;
   ticker: string;
+  market: string;
+  assetType: string;
+  currency: string;
   companyName: string;
   latestPrice: string | null;
   lastMentionedAt: string | null;
@@ -14,21 +18,22 @@ interface Stock {
 type Filter = "all" | "has_price" | "high_freq";
 
 interface Props {
+  market: Market;
   selectedTicker: string | null;
   onSelect: (ticker: string) => void;
 }
 
-export default function StockList({ selectedTicker, onSelect }: Props) {
+export default function StockList({ market, selectedTicker, onSelect }: Props) {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetch(`/api/stocks?filter=${filter}`)
+    fetch(`/api/stocks?filter=${filter}&market=${market}`)
       .then((r) => r.json())
       .then(setStocks)
       .catch(() => {});
-  }, [filter]);
+  }, [filter, market]);
 
   const filters: { key: Filter; label: string }[] = [
     { key: "all", label: "全部" },
@@ -90,7 +95,15 @@ export default function StockList({ selectedTicker, onSelect }: Props) {
             }`}
           >
             <div className="min-w-0">
-              <div className="font-mono font-bold text-base">${s.ticker}</div>
+              <div className="font-mono font-bold text-base">
+                {market === "US" ? "$" : ""}
+                {s.ticker}
+                {s.assetType === "ETF" && (
+                  <span className="ml-1 text-[10px] text-[var(--text-secondary)]">
+                    ETF
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xs font-bold text-[var(--accent-green)]">
                   {s._count.postStocks} 次提及
@@ -109,7 +122,8 @@ export default function StockList({ selectedTicker, onSelect }: Props) {
             <div className="shrink-0 ml-2 text-right">
               {s.latestPrice ? (
                 <span className="font-mono text-sm font-bold">
-                  ${Number(s.latestPrice).toFixed(2)}
+                  {s.currency === "USD" ? "$" : ""}
+                  {Number(s.latestPrice).toFixed(2)}
                 </span>
               ) : (
                 <span className="text-xs text-[var(--text-secondary)]/60">

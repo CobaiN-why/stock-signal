@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Market } from "@/lib/markets";
 
 interface StockProfile {
   shortName: string;
@@ -32,16 +33,25 @@ interface MentionForSentiment {
 
 interface StockData {
   ticker: string;
+  market: string;
+  currency: string;
   companyName: string;
   latestPrice: string | null;
   profile: StockProfile | null;
   analysis: string | null;
+  sector: {
+    slug: string;
+    name: string;
+    description: string;
+    etfs: { ticker: string; market: string; name: string; rationale: string; rank: number }[];
+  } | null;
   mentions?: MentionForSentiment[];
   cumulativeReturn?: number | null;
   firstMentionDate?: string | null;
 }
 
 interface Props {
+  market: Market;
   ticker: string | null;
   onMentionClick?: (postId: string) => void;
 }
@@ -292,24 +302,16 @@ function SentimentModule({
   );
 }
 
-export default function StockInfo({ ticker, onMentionClick }: Props) {
+export default function StockInfo({ market, ticker, onMentionClick }: Props) {
   const [data, setData] = useState<StockData | null>(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!ticker) {
-      setData(null);
-      return;
-    }
-    setLoading(true);
-    fetch(`/api/stocks/${ticker}`)
+    if (!ticker) return;
+    fetch(`/api/stocks/${ticker}?market=${market}`)
       .then((r) => r.json())
-      .then((d) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [ticker]);
+      .then(setData)
+      .catch(() => {});
+  }, [ticker, market]);
 
   if (!ticker) {
     return (
@@ -319,7 +321,7 @@ export default function StockInfo({ ticker, onMentionClick }: Props) {
     );
   }
 
-  if (loading || !data) {
+  if (!data || !ticker || data.market !== market || data.ticker !== ticker) {
     return (
       <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm text-sm text-[var(--text-secondary)] text-center py-8">
         加载中...
@@ -384,6 +386,40 @@ export default function StockInfo({ ticker, onMentionClick }: Props) {
         firstMentionDate={data.firstMentionDate ?? null}
         onMentionClick={onMentionClick}
       />
+
+      {/* Sector ETF recommendations */}
+      {data.sector && (
+        <div className="border-t border-[var(--border-soft)] pt-4 mb-4">
+          <div className="flex items-baseline gap-2 mb-2">
+            <h4 className="text-sm font-bold text-[var(--accent-green)]">
+              关联板块：{data.sector.name}
+            </h4>
+            <span className="text-xs text-[var(--text-secondary)]">
+              ETF 推荐
+            </span>
+          </div>
+          {data.sector.description && (
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
+              {data.sector.description}
+            </p>
+          )}
+          <div className="grid md:grid-cols-3 gap-2">
+            {data.sector.etfs.slice(0, 3).map((etf) => (
+              <div
+                key={etf.ticker}
+                className="border border-[var(--border-soft)] rounded-lg px-3 py-2"
+              >
+                <div className="font-mono text-sm font-bold">
+                  {etf.market === "US" ? "$" : ""}{etf.ticker}
+                </div>
+                <div className="text-xs text-[var(--text-secondary)] truncate">
+                  {etf.name}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* HV Analysis — always visible */}
       {data.analysis && (

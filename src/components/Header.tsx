@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Market } from "@/lib/markets";
 
 interface Stats {
   postCount: number;
@@ -9,15 +10,19 @@ interface Stats {
   lastUpdated: string | null;
 }
 
-export default function Header() {
+interface Props {
+  market: Market;
+}
+
+export default function Header({ market }: Props) {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    fetch("/api/stats")
+    fetch(`/api/stats?market=${market}`)
       .then((r) => r.json())
       .then(setStats)
       .catch(() => {});
-  }, []);
+  }, [market]);
 
   const cards = [
     { label: "帖子入库", value: stats?.postCount ?? "—" },

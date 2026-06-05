@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { normalizeMarket } from "@/lib/markets";
 
 export async function GET(req: NextRequest) {
   const filter = req.nextUrl.searchParams.get("filter");
+  const market = normalizeMarket(req.nextUrl.searchParams.get("market"));
 
   const stocks = await prisma.stock.findMany({
+    where: { market },
     include: {
       _count: { select: { postStocks: true } },
       postStocks: {
@@ -28,6 +31,9 @@ export async function GET(req: NextRequest) {
   const result = filtered.map((s) => ({
     id: s.id,
     ticker: s.ticker,
+    market: s.market,
+    assetType: s.assetType,
+    currency: s.currency,
     companyName: s.companyName,
     latestPrice: s.latestPrice,
     priceUpdatedAt: s.priceUpdatedAt,

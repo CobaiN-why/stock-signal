@@ -1,19 +1,32 @@
 import { prisma } from "../src/lib/db.js";
-import { fetchStockProfile } from "../src/lib/yahoo.js";
+import { fetchStockProfile } from "../src/lib/market-data/index.js";
 import { generateStockAnalysis } from "../src/lib/kimi.js";
+import { normalizeMarket } from "../src/lib/markets.js";
 
 async function main() {
   // Step 1: backfill missing profiles (all stocks)
   const allStocks = await prisma.stock.findMany({
-    select: { id: true, ticker: true, profileData: true, profileUpdatedAt: true },
+    select: {
+      id: true,
+      ticker: true,
+      market: true,
+      assetType: true,
+      dataSymbol: true,
+      profileData: true,
+      profileUpdatedAt: true,
+    },
   });
   const noProfile = allStocks.filter((s) => !s.profileData);
   console.log(`Backfilling ${noProfile.length} / ${allStocks.length} profiles...`);
 
   for (const s of noProfile) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const p = await fetchStockProfile(s.ticker);
+      const p = await fetchStockProfile({
+        ticker: s.ticker,
+        market: normalizeMarket(s.market),
+        assetType: s.assetType === "ETF" ? "ETF" : "STOCK",
+        dataSymbol: s.dataSymbol,
+      });
       if (p) {
         await prisma.stock.update({
           where: { id: s.id },

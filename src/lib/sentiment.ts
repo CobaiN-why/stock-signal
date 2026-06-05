@@ -1,4 +1,4 @@
-const KIMI_API_URL = "https://api.moonshot.cn/v1/chat/completions";
+import { getAiModel, getAiProvider } from "@/lib/ai";
 
 type Sentiment = "bullish" | "bearish";
 
@@ -74,8 +74,8 @@ export async function detectSentiment(
   const rulesResult = detectSentimentByRules(text);
   if (rulesResult) return rulesResult;
 
-  const apiKey = process.env.KIMI_API_KEY;
-  if (!apiKey) return null;
+  const provider = getAiProvider("sentiment");
+  if (!provider) return null;
 
   try {
     const systemPrompt = `You are a financial market sentiment classifier. Your task is to determine whether the author of a tweet is BULLISH or BEARISH on a specific stock ticker.
@@ -153,15 +153,9 @@ Reply with exactly one word: bullish, bearish, or unknown. Nothing else.`;
       `★$${ticker}★`
     );
 
-    const res = await fetch(KIMI_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "moonshot-v1-8k",
-        messages: [
+    const answer = (
+      await provider.chat(
+        [
           {
             role: "system",
             content: systemPrompt,
@@ -171,15 +165,13 @@ Reply with exactly one word: bullish, bearish, or unknown. Nothing else.`;
             content: `Target ticker: $${ticker} (marked as ★$${ticker}★ in the tweet)\n\nTweet:\n"${highlighted}"`,
           },
         ],
-        temperature: 0,
-        max_tokens: 10,
-      }),
-    });
-
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    const answer = (data.choices?.[0]?.message?.content ?? "")
+        {
+          model: getAiModel("sentiment"),
+          temperature: 0,
+          maxTokens: 10,
+        }
+      )
+    )
       .trim()
       .toLowerCase();
 

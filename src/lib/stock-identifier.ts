@@ -1,27 +1,45 @@
 import { prisma } from "./db";
+import { DEFAULT_MARKET, marketConfig, normalizeMarket, type AssetType, type Market } from "./markets";
 
 export interface StockMention {
   ticker: string;
-  type: "cashtag" | "keyword";
+  market: Market;
+  assetType: AssetType;
+  type: "cashtag" | "keyword" | "code";
 }
 
 const CASHTAG_REGEX = /\$([A-Z]{1,5})\b/g;
+const CN_STOCK_CODE_REGEX = /(?:^|[^\d])((?:00|30|60|68)\d{4})(?=$|[^\d])/g;
 
-export async function identifyStocks(text: string): Promise<StockMention[]> {
+export async function identifyStocks(
+  text: string,
+  marketValue: string | null | undefined = DEFAULT_MARKET
+): Promise<StockMention[]> {
+  const market = normalizeMarket(marketValue);
   const mentions = new Map<string, StockMention>();
 
-  // Layer 1: $CASHTAG extraction
-  let match;
-  while ((match = CASHTAG_REGEX.exec(text)) !== null) {
-    const ticker = match[1];
-    if (!mentions.has(ticker)) {
-      mentions.set(ticker, { ticker, type: "cashtag" });
+  if (market === "US") {
+    let match;
+    while ((match = CASHTAG_REGEX.exec(text)) !== null) {
+      const ticker = match[1].toUpperCase();
+      if (!mentions.has(ticker)) {
+        mentions.set(ticker, { ticker, market, assetType: "STOCK", type: "cashtag" });
+      }
+    }
+  } else if (market === "CN") {
+    let match;
+    while ((match = CN_STOCK_CODE_REGEX.exec(text)) !== null) {
+      const ticker = match[1];
+      if (!mentions.has(ticker)) {
+        mentions.set(ticker, { ticker, market, assetType: "STOCK", type: "code" });
+      }
     }
   }
 
   // Layer 2: keyword matching
   const lowerText = text.toLowerCase();
   const mappings = await prisma.keywordMapping.findMany({
+    where: { market },
     include: { stock: true },
   });
 
@@ -32,6 +50,8 @@ export async function identifyStocks(text: string): Promise<StockMention[]> {
     ) {
       mentions.set(mapping.stock.ticker, {
         ticker: mapping.stock.ticker,
+        market,
+        assetType: mapping.stock.assetType as AssetType,
         type: "keyword",
       });
     }
@@ -41,13 +61,25 @@ export async function identifyStocks(text: string): Promise<StockMention[]> {
 }
 
 export async function ensureStockExists(
-  ticker: string
+  ticker: string,
+  marketValue: string | null | undefined = DEFAULT_MARKET,
+  assetType: AssetType = "STOCK"
 ): Promise<{ id: string; isNew: boolean }> {
-  const existing = await prisma.stock.findUnique({ where: { ticker } });
+  const market = normalizeMarket(marketValue);
+  const existing = await prisma.stock.findUnique({
+    where: { market_ticker: { market, ticker } },
+  });
   if (existing) return { id: existing.id, isNew: false };
 
+  const cfg = marketConfig(market);
   const stock = await prisma.stock.create({
-    data: { ticker, companyName: "" },
+    data: {
+      ticker,
+      market,
+      assetType,
+      currency: cfg.currency,
+      companyName: "",
+    },
   });
   return { id: stock.id, isNew: true };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Market } from "@/lib/markets";
 
 interface Blogger {
   id: string;
@@ -12,19 +13,20 @@ interface Blogger {
 }
 
 interface Props {
+  market: Market;
   selectedBlogger: string | null;
   onSelect: (username: string | null) => void;
 }
 
-export default function BloggerList({ selectedBlogger, onSelect }: Props) {
+export default function BloggerList({ market, selectedBlogger, onSelect }: Props) {
   const [bloggers, setBloggers] = useState<Blogger[]>([]);
 
   useEffect(() => {
-    fetch("/api/bloggers")
+    fetch(`/api/bloggers?market=${market}`)
       .then((r) => r.json())
       .then(setBloggers)
       .catch(() => {});
-  }, []);
+  }, [market]);
 
   return (
     <div className="mb-6">

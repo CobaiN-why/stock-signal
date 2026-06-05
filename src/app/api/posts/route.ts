@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { normalizeMarket } from "@/lib/markets";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const ticker = searchParams.get("ticker");
   const blogger = searchParams.get("blogger");
+  const market = normalizeMarket(searchParams.get("market"));
   const limit = parseInt(searchParams.get("limit") || "50", 10);
   const offset = parseInt(searchParams.get("offset") || "0", 10);
 
@@ -12,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   if (ticker) {
     where.postStocks = {
-      some: { stock: { ticker: ticker.toUpperCase() } },
+      some: { stock: { ticker: ticker.toUpperCase(), market } },
     };
   }
   if (blogger) {
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
           },
         },
         postStocks: {
-          include: { stock: { select: { ticker: true } } },
+          include: { stock: { select: { ticker: true, market: true } } },
         },
       },
     }),
