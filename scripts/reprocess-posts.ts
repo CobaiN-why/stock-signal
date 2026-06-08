@@ -82,14 +82,14 @@ function parseArgs(argv: string[]): Options {
 
 function printHelp() {
   console.log(`Usage:
-  node --env-file=.env --import tsx scripts/reprocess-posts.ts [options]
+  npm run reprocess:posts -- [options]
 
 Options:
   --dry-run          Print planned changes without writing to the database
   --prune            Remove old post-stock/post-sector links no longer detected
   --rules-only       Use keyword sentiment rules only; skip AI fallback
   --limit <n>        Reprocess at most n posts
-  --username <name>  Reprocess one blogger, e.g. serenity or @serenity
+  --username <name>  Reprocess one blogger by X username or display name
   --post-id <id>     Reprocess one local post id
   --since <date>     Reprocess posts posted on/after YYYY-MM-DD
 `);
@@ -175,11 +175,18 @@ async function main() {
       ...(options.postId ? { id: options.postId } : {}),
       ...(options.since ? { postedAt: { gte: options.since } } : {}),
       ...(options.username
-        ? { blogger: { xUsername: { equals: options.username, mode: "insensitive" } } }
+        ? {
+            blogger: {
+              OR: [
+                { xUsername: { equals: options.username, mode: "insensitive" } },
+                { displayName: { equals: options.username, mode: "insensitive" } },
+              ],
+            },
+          }
         : {}),
     },
     include: {
-      blogger: { select: { xUsername: true } },
+      blogger: { select: { xUsername: true, displayName: true } },
     },
     orderBy: { postedAt: "asc" },
     take: options.limit,
@@ -191,6 +198,33 @@ async function main() {
       `${options.prune ? " with prune" : ""}` +
       `${options.rulesOnly ? " using rules-only sentiment" : ""}`
   );
+
+  if (posts.length === 0) {
+    const bloggers = await prisma.blogger.findMany({
+      where: options.username
+        ? {
+            OR: [
+              { xUsername: { contains: options.username, mode: "insensitive" } },
+              { displayName: { contains: options.username, mode: "insensitive" } },
+            ],
+          }
+        : {},
+      orderBy: { createdAt: "asc" },
+      take: 20,
+      include: { _count: { select: { posts: true } } },
+    });
+
+    if (bloggers.length > 0) {
+      console.log("\nNo posts matched. Blogger candidates in DB:");
+      for (const blogger of bloggers) {
+        console.log(
+          `- @${blogger.xUsername} (${blogger.displayName}) posts=${blogger._count.posts}`
+        );
+      }
+    } else {
+      console.log("\nNo posts matched, and no blogger candidates were found.");
+    }
+  }
 
   for (const post of posts) {
     stats.scanned++;
