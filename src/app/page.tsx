@@ -13,7 +13,7 @@ import SectorRecommendations from "@/components/SectorRecommendations";
 import type { Market } from "@/lib/markets";
 
 export default function Dashboard() {
-  const [market, setMarket] = useState<Market>("US");
+  const [market, setMarket] = useState<Market>("CN");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [selectedBlogger, setSelectedBlogger] = useState<string | null>(null);
   const [highlightPostId, setHighlightPostId] = useState<string | null>(null);
@@ -61,6 +61,8 @@ export default function Dashboard() {
 
           <SignalEventList market={market} />
 
+          <SectorRecommendations market={market} />
+
           <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm">
             <PriceChart
               market={market}
@@ -69,8 +71,6 @@ export default function Dashboard() {
               onMentionClick={handleMentionClick}
             />
           </div>
-
-          <SectorRecommendations market={market} />
 
           <StockInfo market={market} ticker={selectedTicker} onMentionClick={handleMentionClick} />
 

@@ -18,7 +18,11 @@ export async function GET(req: NextRequest) {
         take: 1,
       },
     },
-    orderBy: { postStocks: { _count: "desc" } },
+    orderBy: [
+      { assetType: "asc" },
+      { postStocks: { _count: "desc" } },
+      { ticker: "asc" },
+    ],
   });
 
   let filtered = stocks;

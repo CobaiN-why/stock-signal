@@ -51,14 +51,14 @@ export default function StockList({ market, selectedTicker, onSelect }: Props) {
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <h2 className="font-serif-title text-sm mb-3 text-[var(--text-secondary)]">
-        Symbols
+        ETF & Symbols
       </h2>
 
       {/* Search */}
       <div className="mb-3">
         <input
           type="text"
-          placeholder="搜索 NVDA / TSM ..."
+          placeholder={market === "CN" ? "搜索 510300 / 芯片ETF ..." : "搜索 NVDA / SPY ..."}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border-soft)] bg-[var(--bg-warm-light)] placeholder:text-[var(--text-secondary)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--accent-green)]"
