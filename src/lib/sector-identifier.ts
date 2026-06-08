@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { DEFAULT_MARKET, normalizeMarket, type Market } from "@/lib/markets";
+import { ALL_MARKETS, DEFAULT_MARKET, normalizeMarket, type Market } from "@/lib/markets";
 
 export interface SectorMention {
   sectorId: string;
@@ -39,4 +39,19 @@ export async function identifySectors(
   }
 
   return Array.from(matches.values());
+}
+
+export async function identifySectorsAcrossMarkets(
+  text: string
+): Promise<SectorMention[]> {
+  const matches = await Promise.all(
+    ALL_MARKETS.map((market) => identifySectors(text, market))
+  );
+  const sectors = new Map<string, SectorMention>();
+
+  for (const sector of matches.flat()) {
+    if (!sectors.has(sector.sectorId)) sectors.set(sector.sectorId, sector);
+  }
+
+  return Array.from(sectors.values());
 }

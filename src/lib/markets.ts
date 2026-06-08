@@ -2,6 +2,7 @@ export type Market = "US" | "CN";
 export type AssetType = "STOCK" | "ETF";
 
 export const DEFAULT_MARKET: Market = "US";
+export const ALL_MARKETS: Market[] = ["US", "CN"];
 
 export interface MarketConfig {
   market: Market;

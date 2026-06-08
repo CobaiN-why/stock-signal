@@ -4,8 +4,8 @@ Multi-source market signal dashboard. It monitors finance bloggers, extracts sto
 
 ## Features
 
-- Track multiple finance bloggers, each scoped to a market and color-coded on charts
-- Auto-extract stock tickers via market-specific rules and keyword matching
+- Track one shared finance blogger watchlist and color-code each blogger on charts
+- Auto-extract US stocks, A-share stocks, and ETFs via market-specific rules and keyword matching
 - Identify sector mentions from a seeded sector keyword library
 - Interactive price charts (TradingView Lightweight Charts) with sentiment-aware markers (▲ bullish / ▼ bearish)
 - Sentiment detection per post (keyword rules + configurable AI fallback: Kimi or DeepSeek)
@@ -77,7 +77,7 @@ curl -X POST "http://127.0.0.1:3000/api/cron/sync-prices?market=CN&includeSeeded
 
 A combined cron endpoint at `/api/cron/daily` runs six steps sequentially:
 
-1. **Fetch posts** — pull new posts from tracked bloggers, identify stock and sector mentions, detect sentiment, write signal events on new stocks/flips/divergence
+1. **Fetch posts** — pull new posts from the shared blogger watchlist, identify US/CN stock and sector mentions, detect sentiment, write signal events on new stocks/flips/divergence
 2. **Sync prices** — backfill daily OHLCV bars from the market data provider
 3. **Update latest** — refresh real-time prices
 4. **Sync profiles** — fetch provider profile data for all stocks (24h cache)
@@ -94,4 +94,4 @@ Push to `main` branch → Railway auto-deploys via GitHub integration.
 
 ## Architecture Notes
 
-The provider refactor is documented in `docs/market-provider-refactor.md`. Add future A-share support by implementing a CN `MarketDataProvider`, adding CN sector/ETF seed data, and assigning CN bloggers to `market = "CN"`.
+The provider refactor is documented in `docs/market-provider-refactor.md`. A-share support is implemented as a CN `MarketDataProvider` plus CN sector/ETF seed data. Bloggers are a shared watchlist; the ingest pipeline classifies each post into the relevant market by its stock and sector mentions.

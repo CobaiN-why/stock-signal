@@ -1,5 +1,12 @@
 import { prisma } from "./db";
-import { DEFAULT_MARKET, marketConfig, normalizeMarket, type AssetType, type Market } from "./markets";
+import {
+  ALL_MARKETS,
+  DEFAULT_MARKET,
+  marketConfig,
+  normalizeMarket,
+  type AssetType,
+  type Market,
+} from "./markets";
 
 export interface StockMention {
   ticker: string;
@@ -55,6 +62,22 @@ export async function identifyStocks(
         type: "keyword",
       });
     }
+  }
+
+  return Array.from(mentions.values());
+}
+
+export async function identifyStocksAcrossMarkets(
+  text: string
+): Promise<StockMention[]> {
+  const matches = await Promise.all(
+    ALL_MARKETS.map((market) => identifyStocks(text, market))
+  );
+  const mentions = new Map<string, StockMention>();
+
+  for (const mention of matches.flat()) {
+    const key = `${mention.market}:${mention.ticker}`;
+    if (!mentions.has(key)) mentions.set(key, mention);
   }
 
   return Array.from(mentions.values());

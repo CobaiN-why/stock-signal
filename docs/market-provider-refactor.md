@@ -19,9 +19,9 @@ This document describes the current architecture after the market/source/provide
 | Post source | `src/lib/social/*` | Fetch external posts. TwitterAPI.io is implemented as `PostSource` |
 | Market data | `src/lib/market-data/*` | Fetch bars, latest prices, and profiles. US uses Twelve Data + Finnhub; CN uses AkShare |
 | AI provider | `src/lib/ai/*` | Call Kimi or DeepSeek through one chat interface |
-| Ingest pipeline | `src/lib/ingest.ts` | Fetch posts, identify stocks/sectors, classify sentiment, store DB records/events |
-| Stock identification | `src/lib/stock-identifier.ts` | Market-specific ticker/code rules plus keyword mappings |
-| Sector identification | `src/lib/sector-identifier.ts` | Sector keyword mappings from DB |
+| Ingest pipeline | `src/lib/ingest.ts` | Fetch posts from the shared blogger watchlist, identify US/CN stocks/sectors, classify sentiment, store DB records/events |
+| Stock identification | `src/lib/stock-identifier.ts` | Cross-market wrapper around market-specific ticker/code rules plus keyword mappings |
+| Sector identification | `src/lib/sector-identifier.ts` | Cross-market wrapper around sector keyword mappings from DB |
 | Signal events | `src/lib/signal-events.ts` | Persist events for page display and future push channels |
 
 ## Persistence Model
@@ -31,6 +31,7 @@ The database is the source of truth.
 - Posts are stored in `posts`.
 - Stock mentions are stored in `post_stocks`.
 - Sector mentions are stored in `post_sectors`.
+- Bloggers are a shared watchlist. `bloggers.market` is retained only for compatibility with existing rows and is not used to limit ingest.
 - Stocks and ETFs are both stored in `stocks`; ETFs use `asset_type = "ETF"`.
 - Sector definitions are stored in `sectors`.
 - Sector keyword rules are stored in `sector_keywords`.
@@ -110,8 +111,7 @@ The expected implementation path is:
 
 1. Add more CN instruments to `src/data/cn-instruments.json`.
 2. Add more CN sector definitions and ETF recommendations to `src/data/sectors.json`.
-3. Add a CN-focused `PostSource` if the source is not X/Twitter.
-4. Set target bloggers to `market = "CN"`.
-5. Run `npx prisma db push`, `npx prisma generate`, and `npx prisma db seed`.
+3. Add more X/Twitter accounts to the shared blogger watchlist, or add a CN-focused `PostSource` if the source is not X/Twitter.
+4. Run `npx prisma db push`, `npx prisma generate`, and `npx prisma db seed`.
 
-Routes and components already accept `market=CN`; the remaining work is source data quality and richer CN instrument coverage.
+Routes and components already accept `market=CN`; market-specific pages filter by the stocks/sectors a post mentions, not by the blogger row.

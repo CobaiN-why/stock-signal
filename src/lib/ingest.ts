@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db";
 import { detectSentiment } from "@/lib/sentiment";
-import { identifySectors } from "@/lib/sector-identifier";
+import { identifySectorsAcrossMarkets } from "@/lib/sector-identifier";
 import {
   ensureStockExists,
-  identifyStocks,
+  identifyStocksAcrossMarkets,
   type StockMention,
 } from "@/lib/stock-identifier";
 import { getPostSource } from "@/lib/social";
@@ -14,7 +14,6 @@ import {
   recordSectorMention,
   recordSentimentFlip,
 } from "@/lib/signal-events";
-import { normalizeMarket, type Market } from "@/lib/markets";
 
 interface IngestResult {
   bloggers: number;
@@ -36,8 +35,6 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
   let sectorMentions = 0;
 
   for (const blogger of bloggers) {
-    const market = normalizeMarket(blogger.market);
-
     try {
       const posts = await postSource.fetchUserPosts(
         blogger.xUsername,
@@ -51,8 +48,8 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
         if (exists) continue;
 
         const [stockMatches, sectorMatches] = await Promise.all([
-          identifyStocks(sourcePost.text, market),
-          identifySectors(sourcePost.text, market),
+          identifyStocksAcrossMarkets(sourcePost.text),
+          identifySectorsAcrossMarkets(sourcePost.text),
         ]);
 
         if (stockMatches.length === 0 && sectorMatches.length === 0) continue;
@@ -81,7 +78,7 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
           await recordSectorMention({
             sectorId: sector.sectorId,
             sectorName: sector.name,
-            market,
+            market: sector.market,
             blogger: blogger.xUsername,
             content: sourcePost.text,
             postUrl: sourcePost.url,
@@ -91,7 +88,6 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
         for (const mention of stockMatches) {
           await persistStockMention({
             mention,
-            market,
             postId: post.id,
             bloggerId: blogger.id,
             bloggerUsername: blogger.xUsername,
@@ -133,7 +129,6 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
 
 async function persistStockMention(input: {
   mention: StockMention;
-  market: Market;
   postId: string;
   bloggerId: string;
   bloggerUsername: string;
@@ -142,7 +137,7 @@ async function persistStockMention(input: {
 }) {
   const { id: stockId, isNew } = await ensureStockExists(
     input.mention.ticker,
-    input.market,
+    input.mention.market,
     input.mention.assetType
   );
 
@@ -160,7 +155,7 @@ async function persistStockMention(input: {
   if (isNew) {
     await recordNewStockMention({
       ticker: input.mention.ticker,
-      market: input.market,
+      market: input.mention.market,
       stockId,
       blogger: input.bloggerUsername,
       content: input.content,
@@ -184,7 +179,7 @@ async function persistStockMention(input: {
   if (previousPost?.sentiment && previousPost.sentiment !== sentiment) {
     await recordSentimentFlip({
       ticker: input.mention.ticker,
-      market: input.market,
+      market: input.mention.market,
       stockId,
       blogger: input.bloggerUsername,
       previousSentiment: previousPost.sentiment,
@@ -240,7 +235,7 @@ async function persistStockMention(input: {
 
   await recordDivergence({
     ticker: input.mention.ticker,
-    market: input.market,
+    market: input.mention.market,
     stockId,
     bullishBloggers,
     bearishBloggers,

@@ -4,14 +4,21 @@ import { normalizeMarket } from "@/lib/markets";
 
 export async function GET(req: NextRequest) {
   const market = normalizeMarket(req.nextUrl.searchParams.get("market"));
+  const marketPostWhere = {
+    OR: [
+      { postStocks: { some: { stock: { market } } } },
+      { postSectors: { some: { sector: { market } } } },
+    ],
+  };
+
   const [postCount, stockCount, bloggerCount, lastPost] = await Promise.all([
-    prisma.post.count({ where: { blogger: { market } } }),
+    prisma.post.count({ where: marketPostWhere }),
     prisma.stock.count({
       where: { market, postStocks: { some: {} } },
     }),
-    prisma.blogger.count({ where: { isActive: true, market } }),
+    prisma.blogger.count({ where: { isActive: true } }),
     prisma.post.findFirst({
-      where: { blogger: { market } },
+      where: marketPostWhere,
       orderBy: { fetchedAt: "desc" },
     }),
   ]);
