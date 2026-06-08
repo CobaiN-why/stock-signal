@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { buildStockResponse } from "@/lib/stock-response";
+import {
+  STOCK_RESPONSE_SCHEMA_VERSION,
+  buildStockResponse,
+} from "@/lib/stock-response";
 import { normalizeMarket } from "@/lib/markets";
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12h — data only updates once per day via cron
@@ -33,7 +36,13 @@ export async function GET(
     return NextResponse.json({ error: "Stock not found" }, { status: 404 });
   }
 
-  if (row.cachedResponse) {
+  if (
+    row.cachedResponse &&
+    typeof row.cachedResponse === "object" &&
+    !Array.isArray(row.cachedResponse) &&
+    "schemaVersion" in row.cachedResponse &&
+    row.cachedResponse.schemaVersion === STOCK_RESPONSE_SCHEMA_VERSION
+  ) {
     const data = row.cachedResponse as object;
     responseCache.set(cacheKey, { data, ts: Date.now() });
     return NextResponse.json(data);

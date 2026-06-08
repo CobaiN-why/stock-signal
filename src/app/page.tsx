@@ -61,7 +61,11 @@ export default function Dashboard() {
 
           <SignalEventList market={market} />
 
-          <SectorRecommendations market={market} />
+          <SectorRecommendations
+            market={market}
+            selectedTicker={selectedTicker}
+            onSelectTicker={setSelectedTicker}
+          />
 
           <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm">
             <PriceChart

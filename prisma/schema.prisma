@@ -171,6 +171,7 @@ model PostSector {
   sectorId   String @map("sector_id")
   confidence Decimal @default(1)
   evidence   String @default("")
+  sentiment  String? @map("sentiment") // "bullish" | "bearish" | null
 
   post   Post   @relation(fields: [postId], references: [id])
   sector Sector @relation(fields: [sectorId], references: [id])

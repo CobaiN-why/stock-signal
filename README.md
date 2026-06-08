@@ -7,12 +7,13 @@ Multi-source market signal dashboard. It monitors finance bloggers, extracts sto
 - Track one shared finance blogger watchlist and color-code each blogger on charts
 - Auto-extract US stocks, A-share stocks, and ETFs via market-specific rules and keyword matching
 - Identify sector mentions from a seeded sector keyword library
+- Infer weaker sector links from mentioned stocks, e.g. NVDA -> semiconductors, with confidence labels
 - Interactive price charts (TradingView Lightweight Charts) with sentiment-aware markers (▲ bullish / ▼ bearish)
 - Sentiment detection per post (keyword rules + configurable AI fallback: Kimi or DeepSeek)
 - Blogger opinion divergence module with cumulative return since first mention
 - AI-powered stock analysis reports through the configured analysis provider
 - In-page signal event stream for new stocks, sector mentions, sentiment flips, divergence, and ingest errors
-- Sector ETF recommendation module, with ETF instruments stored as first-class tracked assets
+- Sector ETF recommendation module, with ETF instruments stored as first-class tracked assets and clickable ETF charts
 - Provider-based market data integration; US uses Twelve Data/Finnhub, CN uses a Python AkShare bridge
 
 ## Tech Stack
@@ -87,6 +88,15 @@ A combined cron endpoint at `/api/cron/daily` runs six steps sequentially:
 Trigger via GET with `?secret=<CRON_SECRET>` or POST with `Authorization: Bearer <CRON_SECRET>`.
 
 Scheduled daily at 02:00 Beijing time via cron-job.org.
+
+## Sector and ETF Signals
+
+Sector mentions have two strengths:
+
+- **Direct** — the post explicitly mentions a sector keyword such as `半导体`, `芯片`, or `AI infrastructure`.
+- **Weak inferred** — the post mentions a stock already mapped to a sector, such as `NVDA` implying semiconductors. These are shown as weak associations on ETF charts.
+
+Sector ETF cards are sorted by the configured size-priority `rank`. Clicking an ETF switches the main chart to that ETF and overlays both direct ETF mentions and related sector opinions.
 
 ## Deployment
 

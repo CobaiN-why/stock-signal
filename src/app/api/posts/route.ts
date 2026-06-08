@@ -13,9 +13,21 @@ export async function GET(req: NextRequest) {
   const where: Record<string, unknown> = {};
 
   if (ticker) {
-    where.postStocks = {
-      some: { stock: { ticker: ticker.toUpperCase(), market } },
-    };
+    const stock = await prisma.stock.findUnique({
+      where: { market_ticker: { market, ticker: ticker.toUpperCase() } },
+      select: { assetType: true, sectorId: true },
+    });
+
+    where.OR = [
+      {
+        postStocks: {
+          some: { stock: { ticker: ticker.toUpperCase(), market } },
+        },
+      },
+      ...(stock?.assetType === "ETF" && stock.sectorId
+        ? [{ postSectors: { some: { sectorId: stock.sectorId } } }]
+        : []),
+    ];
   }
   if (blogger) {
     where.blogger = { xUsername: blogger };
@@ -38,6 +50,11 @@ export async function GET(req: NextRequest) {
         },
         postStocks: {
           include: { stock: { select: { ticker: true, market: true } } },
+        },
+        postSectors: {
+          include: {
+            sector: { select: { slug: true, name: true, market: true } },
+          },
         },
       },
     }),

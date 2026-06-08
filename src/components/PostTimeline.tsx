@@ -15,6 +15,12 @@ interface Post {
     avatarUrl: string | null;
   };
   postStocks: { stock: { ticker: string; market: string } }[];
+  postSectors: {
+    confidence: string | number;
+    evidence: string;
+    sentiment: string | null;
+    sector: { slug: string; name: string; market: string };
+  }[];
 }
 
 interface Props {
@@ -101,10 +107,19 @@ export default function PostTimeline({
               <div className="ml-auto flex gap-1">
                 {post.postStocks.map((ps) => (
                   <span
-                    key={ps.stock.ticker}
+                    key={`${ps.stock.market}:${ps.stock.ticker}`}
                     className="text-xs bg-[var(--border-soft)] rounded px-1.5 py-0.5 font-mono"
                   >
                     {ps.stock.market === "US" ? "$" : ""}{ps.stock.ticker}
+                  </span>
+                ))}
+                {post.postSectors.map((ps) => (
+                  <span
+                    key={`${ps.sector.market}:${ps.sector.slug}`}
+                    title={ps.evidence}
+                    className="text-xs bg-[var(--accent-green)]/10 text-[var(--accent-green)] rounded px-1.5 py-0.5"
+                  >
+                    {Number(ps.confidence) >= 0.7 ? "板块" : "弱关联"}:{ps.sector.name}
                   </span>
                 ))}
               </div>

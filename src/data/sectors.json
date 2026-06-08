@@ -74,7 +74,9 @@
     "etfs": [
       { "ticker": "510300", "name": "沪深300ETF", "rationale": "A股大盘核心资产敞口", "rank": 1 },
       { "ticker": "510500", "name": "中证500ETF", "rationale": "中盘成长和制造业敞口", "rank": 2 },
-      { "ticker": "159915", "name": "创业板ETF", "rationale": "创业板成长风格敞口", "rank": 3 }
+      { "ticker": "159915", "name": "创业板ETF", "rationale": "创业板成长风格敞口", "rank": 3 },
+      { "ticker": "588000", "name": "科创50ETF", "rationale": "科创板硬科技宽基敞口", "rank": 4 },
+      { "ticker": "588080", "name": "科创板50ETF", "rationale": "科创板核心资产替代选择", "rank": 5 }
     ]
   },
   {
@@ -85,7 +87,9 @@
     "keywords": ["半导体", "芯片", "国产替代", "晶圆", "先进封装", "光刻胶"],
     "stockTickers": ["688981", "512760"],
     "etfs": [
-      { "ticker": "512760", "name": "芯片ETF", "rationale": "A股半导体产业链主题敞口", "rank": 1 }
+      { "ticker": "512760", "name": "芯片ETF", "rationale": "A股半导体产业链主题敞口", "rank": 1 },
+      { "ticker": "512480", "name": "半导体ETF", "rationale": "A股半导体设计、制造和设备主题", "rank": 2 },
+      { "ticker": "159995", "name": "芯片ETF", "rationale": "深市芯片产业链主题替代选择", "rank": 3 }
     ]
   },
   {
@@ -108,7 +112,8 @@
     "keywords": ["银行", "保险", "金融", "大金融", "中特估"],
     "stockTickers": ["000001", "600036", "601318"],
     "etfs": [
-      { "ticker": "510300", "name": "沪深300ETF", "rationale": "金融权重较高的核心宽基替代", "rank": 1 }
+      { "ticker": "512880", "name": "证券ETF", "rationale": "券商 beta 和市场活跃度弹性", "rank": 1 },
+      { "ticker": "510300", "name": "沪深300ETF", "rationale": "金融权重较高的核心宽基替代", "rank": 2 }
     ]
   },
   {
@@ -119,7 +124,9 @@
     "keywords": ["消费", "白酒", "医药", "医疗器械", "核心资产"],
     "stockTickers": ["600519", "300760"],
     "etfs": [
-      { "ticker": "510300", "name": "沪深300ETF", "rationale": "覆盖部分消费医药核心权重", "rank": 1 }
+      { "ticker": "159928", "name": "消费ETF", "rationale": "主要消费龙头组合敞口", "rank": 1 },
+      { "ticker": "512010", "name": "医药ETF", "rationale": "医药医疗板块主题敞口", "rank": 2 },
+      { "ticker": "510300", "name": "沪深300ETF", "rationale": "覆盖部分消费医药核心权重", "rank": 3 }
     ]
   }
 ]

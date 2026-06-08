@@ -112,16 +112,35 @@ export async function recordSectorMention(input: {
   blogger: string;
   content: string;
   postUrl: string;
+  confidence?: number;
+  evidence?: string;
+  sentiment?: string | null;
 }) {
+  const strength =
+    input.confidence !== undefined && input.confidence < 0.7
+      ? "弱关联"
+      : "直接提及";
+  const sentimentText =
+    input.sentiment === "bullish"
+      ? "看多"
+      : input.sentiment === "bearish"
+        ? "看空"
+        : "倾向未知";
+
   return recordSignalEvent(
     "sector_mention",
-    `板块提及: ${input.sectorName}`,
-    `@${input.blogger}: ${input.content.slice(0, 240)}`,
+    `板块提及: ${input.sectorName} (${strength})`,
+    `@${input.blogger}: ${sentimentText}${input.evidence ? ` / ${input.evidence}` : ""}\n${input.content.slice(0, 240)}`,
     {
       market: input.market,
       sectorId: input.sectorId,
       sourceUrl: input.postUrl,
-      metadata: { blogger: input.blogger },
+      metadata: {
+        blogger: input.blogger,
+        confidence: input.confidence,
+        evidence: input.evidence,
+        sentiment: input.sentiment,
+      },
     }
   );
 }

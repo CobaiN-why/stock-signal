@@ -102,7 +102,7 @@ async function main() {
     }
 
     for (const etf of sectorConfig.etfs) {
-      await prisma.stock.upsert({
+      const stock = await prisma.stock.upsert({
         where: {
           market_ticker: {
             market: sectorConfig.market,
@@ -149,6 +149,23 @@ async function main() {
           rank: etf.rank,
         },
       });
+
+      for (const keyword of [etf.ticker, etf.name]) {
+        await prisma.keywordMapping.upsert({
+          where: {
+            market_keyword: {
+              market: sectorConfig.market,
+              keyword: keyword.toLowerCase(),
+            },
+          },
+          update: { stockId: stock.id },
+          create: {
+            market: sectorConfig.market,
+            keyword: keyword.toLowerCase(),
+            stockId: stock.id,
+          },
+        });
+      }
     }
   }
 

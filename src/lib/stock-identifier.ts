@@ -16,7 +16,8 @@ export interface StockMention {
 }
 
 const CASHTAG_REGEX = /\$([A-Z]{1,5})\b/g;
-const CN_STOCK_CODE_REGEX = /(?:^|[^\d])((?:00|30|60|68)\d{4})(?=$|[^\d])/g;
+const CN_INSTRUMENT_CODE_REGEX =
+  /(?:^|[^\d])((?:00|15|30|51|58|60|68)\d{4})(?=$|[^\d])/g;
 
 export async function identifyStocks(
   text: string,
@@ -35,10 +36,11 @@ export async function identifyStocks(
     }
   } else if (market === "CN") {
     let match;
-    while ((match = CN_STOCK_CODE_REGEX.exec(text)) !== null) {
+    while ((match = CN_INSTRUMENT_CODE_REGEX.exec(text)) !== null) {
       const ticker = match[1];
       if (!mentions.has(ticker)) {
-        mentions.set(ticker, { ticker, market, assetType: "STOCK", type: "code" });
+        const assetType = /^(15|51|58)/.test(ticker) ? "ETF" : "STOCK";
+        mentions.set(ticker, { ticker, market, assetType, type: "code" });
       }
     }
   }

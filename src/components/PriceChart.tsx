@@ -16,6 +16,9 @@ import type { Market } from "@/lib/markets";
 interface Mention {
   id: string;
   mentionType: string;
+  associationType?: "direct_stock" | "direct_sector" | "inferred_sector";
+  confidence?: number;
+  evidence?: string;
   sentiment: string | null;
   post: {
     id: string;
@@ -69,6 +72,12 @@ export default function PriceChart({
   const [data, setData] = useState<StockDetail | null>(null);
   const [hoveredMention, setHoveredMention] = useState<Mention | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
+  const associationLabel = (mention: Mention) => {
+    if (mention.associationType === "direct_sector") return "直接板块";
+    if (mention.associationType === "inferred_sector") return "弱关联推断";
+    return "直接标的";
+  };
 
   useEffect(() => {
     if (!ticker) return;
@@ -191,7 +200,12 @@ export default function PriceChart({
           position: positions[Math.min(i, 2)],
           color: m.post.blogger.color,
           shape,
-          text: i === 0 && mentions.length > 1 ? `${mentions.length}` : "",
+          text:
+            m.associationType === "inferred_sector"
+              ? "弱"
+              : i === 0 && mentions.length > 1
+                ? `${mentions.length}`
+                : "",
           size: 2,
         });
       });
@@ -264,14 +278,22 @@ export default function PriceChart({
   }
 
   // Group mention counts by blogger
-  const bloggerCounts = new Map<string, { color: string; count: number }>();
+  const bloggerCounts = new Map<
+    string,
+    { color: string; count: number; weakCount: number }
+  >();
   for (const m of data.mentions) {
     const key = m.post.blogger.xUsername;
     const existing = bloggerCounts.get(key);
     if (existing) {
       existing.count++;
+      if (m.associationType === "inferred_sector") existing.weakCount++;
     } else {
-      bloggerCounts.set(key, { color: m.post.blogger.color, count: 1 });
+      bloggerCounts.set(key, {
+        color: m.post.blogger.color,
+        count: 1,
+        weakCount: m.associationType === "inferred_sector" ? 1 : 0,
+      });
     }
   }
 
@@ -304,6 +326,11 @@ export default function PriceChart({
                 style={{ backgroundColor: info.color }}
               />
               @{username} x{info.count}
+              {info.weakCount > 0 && (
+                <span className="text-[var(--text-secondary)]">
+                  弱{info.weakCount}
+                </span>
+              )}
             </span>
           ))}
         </div>
@@ -339,6 +366,9 @@ export default function PriceChart({
                   {hoveredMention.sentiment === "bullish" ? "看多" : "看空"}
                 </span>
               )}
+              <span className="text-[var(--text-secondary)]">
+                {associationLabel(hoveredMention)}
+              </span>
               <span className="text-[var(--text-secondary)] ml-auto">
                 {new Date(hoveredMention.post.postedAt).toLocaleDateString(
                   "zh-CN"
@@ -348,6 +378,13 @@ export default function PriceChart({
             <p className="text-[var(--text-primary)] line-clamp-3">
               {hoveredMention.post.content}
             </p>
+            {hoveredMention.evidence && (
+              <p className="mt-1 text-[var(--text-secondary)]">
+                关联依据：{hoveredMention.evidence}
+                {hoveredMention.confidence !== undefined &&
+                  ` / 置信度 ${Math.round(hoveredMention.confidence * 100)}%`}
+              </p>
+            )}
           </div>
         )}
       </div>
