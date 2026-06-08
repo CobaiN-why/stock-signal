@@ -98,6 +98,15 @@ Sector mentions have two strengths:
 
 Sector ETF cards are sorted by the configured size-priority `rank`. Clicking an ETF switches the main chart to that ETF and overlays both direct ETF mentions and related sector opinions.
 
+Reprocess already stored posts after changing stock/sector rules:
+
+```bash
+npm run reprocess:posts -- --dry-run --limit 20
+npm run reprocess:posts -- --username serenity --limit 100
+```
+
+Add `--rules-only` to avoid AI sentiment calls, or `--prune` to remove old links that are no longer detected.
+
 ## Deployment
 
 Push to `main` branch → Railway auto-deploys via GitHub integration.
