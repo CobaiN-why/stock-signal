@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import sys
+import time
 
 
 def disable_proxy_by_default():
@@ -28,6 +29,7 @@ disable_proxy_by_default()
 
 try:
     import akshare as ak
+    import requests
 except Exception:
     fail("Python package 'akshare' is not installed. Run: pip install akshare pandas")
 
@@ -70,9 +72,94 @@ def frame_to_bars(df):
     return bars
 
 
+def eastmoney_secid(symbol):
+    if symbol.startswith(("5", "6", "9")):
+        return f"1.{symbol}"
+    return f"0.{symbol}"
+
+
+def eastmoney_session():
+    session = requests.Session()
+    session.trust_env = False
+    session.headers.update(
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+            ),
+            "Accept": "application/json,text/plain,*/*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Referer": "https://quote.eastmoney.com/",
+            "Connection": "close",
+        }
+    )
+    return session
+
+
+def fetch_eastmoney_bars(symbol, from_date, to_date):
+    start = compact_date(from_date) or "19900101"
+    end = compact_date(to_date) or "20991231"
+    params = {
+        "fields1": "f1,f2,f3,f4,f5,f6",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116",
+        "ut": "7eea3edcaed734bea9cbfc24409ed989",
+        "klt": "101",
+        "fqt": "1",
+        "beg": start,
+        "end": end,
+        "secid": eastmoney_secid(symbol),
+    }
+
+    last_error = None
+    for attempt in range(3):
+        try:
+            res = eastmoney_session().get(
+                "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+                params=params,
+                timeout=20,
+            )
+            res.raise_for_status()
+            data = res.json()
+            klines = data.get("data", {}).get("klines") or []
+            bars = []
+            for item in klines:
+                parts = item.split(",")
+                if len(parts) < 6:
+                    continue
+                bars.append(
+                    {
+                        "date": parts[0],
+                        "open": float(parts[1]),
+                        "close": float(parts[2]),
+                        "high": float(parts[3]),
+                        "low": float(parts[4]),
+                        "volume": int(float(parts[5] or 0)),
+                    }
+                )
+            return bars
+        except Exception as exc:
+            last_error = exc
+            time.sleep(1 + attempt)
+
+    raise last_error
+
+
 def fetch_bars(symbol, asset_type, from_date, to_date):
     start = compact_date(from_date)
     end = compact_date(to_date)
+    try:
+        bars = fetch_eastmoney_bars(symbol, from_date, to_date)
+        if bars:
+            return bars
+    except Exception as exc:
+        print(
+            json.dumps(
+                {"warning": f"eastmoney direct fetch failed: {exc}"},
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+
     if asset_type == "ETF":
         df = ak.fund_etf_hist_em(
             symbol=symbol,
