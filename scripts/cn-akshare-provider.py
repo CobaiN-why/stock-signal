@@ -1,13 +1,30 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import sys
+
+
+def disable_proxy_by_default():
+    if os.environ.get("CN_MARKET_DATA_USE_PROXY") == "1":
+        return
+    for key in (
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+    ):
+        os.environ.pop(key, None)
 
 
 def fail(message, code=1):
     print(json.dumps({"error": message}, ensure_ascii=False), file=sys.stderr)
     raise SystemExit(code)
 
+
+disable_proxy_by_default()
 
 try:
     import akshare as ak
