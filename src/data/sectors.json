@@ -63,5 +63,63 @@
       { "ticker": "VOO", "name": "Vanguard S&P 500 ETF", "rationale": "低费率标普 500 敞口", "rank": 2 },
       { "ticker": "QQQ", "name": "Invesco QQQ Trust", "rationale": "纳指 100 成长敞口", "rank": 3 }
     ]
+  },
+  {
+    "market": "CN",
+    "slug": "broad_market",
+    "name": "宽基指数",
+    "description": "A股核心宽基指数和市场整体 beta 配置。",
+    "keywords": ["宽基", "沪深300", "中证500", "创业板", "指数基金", "大盘", "A股"],
+    "stockTickers": ["510300", "510500", "159915"],
+    "etfs": [
+      { "ticker": "510300", "name": "沪深300ETF", "rationale": "A股大盘核心资产敞口", "rank": 1 },
+      { "ticker": "510500", "name": "中证500ETF", "rationale": "中盘成长和制造业敞口", "rank": 2 },
+      { "ticker": "159915", "name": "创业板ETF", "rationale": "创业板成长风格敞口", "rank": 3 }
+    ]
+  },
+  {
+    "market": "CN",
+    "slug": "semiconductors",
+    "name": "半导体",
+    "description": "A股芯片设计、制造、设备、材料和国产替代相关标的。",
+    "keywords": ["半导体", "芯片", "国产替代", "晶圆", "先进封装", "光刻胶"],
+    "stockTickers": ["688981", "512760"],
+    "etfs": [
+      { "ticker": "512760", "name": "芯片ETF", "rationale": "A股半导体产业链主题敞口", "rank": 1 }
+    ]
+  },
+  {
+    "market": "CN",
+    "slug": "new_energy",
+    "name": "新能源",
+    "description": "新能源车、动力电池、光伏和储能相关标的。",
+    "keywords": ["新能源", "新能源车", "锂电", "动力电池", "光伏", "储能"],
+    "stockTickers": ["300750", "002594", "515790", "516160"],
+    "etfs": [
+      { "ticker": "516160", "name": "新能源ETF", "rationale": "新能源产业链宽主题敞口", "rank": 1 },
+      { "ticker": "515790", "name": "光伏ETF", "rationale": "光伏产业链主题敞口", "rank": 2 }
+    ]
+  },
+  {
+    "market": "CN",
+    "slug": "financials",
+    "name": "金融",
+    "description": "银行、保险和大金融权重板块。",
+    "keywords": ["银行", "保险", "金融", "大金融", "中特估"],
+    "stockTickers": ["000001", "600036", "601318"],
+    "etfs": [
+      { "ticker": "510300", "name": "沪深300ETF", "rationale": "金融权重较高的核心宽基替代", "rank": 1 }
+    ]
+  },
+  {
+    "market": "CN",
+    "slug": "consumption_healthcare",
+    "name": "消费医药",
+    "description": "白酒、医疗器械、消费和医药核心资产。",
+    "keywords": ["消费", "白酒", "医药", "医疗器械", "核心资产"],
+    "stockTickers": ["600519", "300760"],
+    "etfs": [
+      { "ticker": "510300", "name": "沪深300ETF", "rationale": "覆盖部分消费医药核心权重", "rank": 1 }
+    ]
   }
 ]

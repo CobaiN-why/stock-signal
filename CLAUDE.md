@@ -8,7 +8,7 @@ Multi-source market signal dashboard. Tracks finance bloggers, extracts stock an
 - **Database**: Supabase PostgreSQL via Prisma ORM
 - **Charts**: TradingView Lightweight Charts
 - **Styling**: Tailwind CSS
-- **External APIs**: TwitterAPI.io, Twelve Data (US price bars), Finnhub (US quote + profile), Kimi (Moonshot) AI, DeepSeek AI
+- **External APIs**: TwitterAPI.io, Twelve Data (US price bars), Finnhub (US quote + profile), AkShare via Python (CN bars/quotes/profiles), Kimi (Moonshot) AI, DeepSeek AI
 - **Hosting**: Railway
 - **Cron**: cron-job.org (daily trigger)
 
@@ -46,7 +46,7 @@ src/
 ├── components/          # BloggerList, Header, PostTimeline, PriceChart, StockInfo, StockList
 ├── lib/
 │   ├── ai/              # AI provider abstraction: Kimi and DeepSeek
-│   ├── market-data/     # Market data provider abstraction; US provider uses Twelve Data + Finnhub
+│   ├── market-data/     # Market data provider abstraction; US uses Twelve Data + Finnhub, CN uses AkShare bridge
 │   ├── social/          # Post source abstraction; TwitterAPI.io source currently implemented
 │   ├── cron-auth.ts     # Bearer token + ?secret= query param auth
 │   ├── db.ts            # Prisma client singleton
@@ -60,7 +60,7 @@ src/
 │   ├── telegram.ts      # Legacy Telegram sender; not used by current ingest path
 │   ├── twitter.ts       # Compatibility wrapper for social/twitter
 │   └── yahoo.ts         # Compatibility wrapper for US market data
-└── data/                # keywords.json, sectors.json
+└── data/                # keywords.json, cn-instruments.json, sectors.json
 scripts/
 ├── backfill-profiles.ts    # One-off: backfill missing Finnhub profiles + Kimi analyses
 ├── backfill-sentiment.ts   # One-off: backfill sentiment for all PostStock records
@@ -80,6 +80,7 @@ scripts/
 - `stocks/[ticker]?market=US` API is **read-only DB** — never calls price/profile APIs or AI; all pre-fetching is done in daily cron
 - `Stock.ticker` is no longer globally unique; use the Prisma composite key `market_ticker`
 - New external data sources should implement `PostSource` or `MarketDataProvider` instead of branching inside API routes
+- CN market data requires Python dependencies: `python3 -m pip install akshare pandas`
 - AI model changes should go through `src/lib/ai`; prefer env overrides over hard-coded model names
 - Deployment: `git push` to `maomou/stock-signal` (GitHub) → Railway auto-deploys
 
@@ -99,8 +100,8 @@ scripts/
 | Step | Name | What it does |
 |------|------|-------------|
 | 1 | fetch-posts | Pull new posts, identify stocks and sectors, detect sentiment, write signal events |
-| 2 | sync-prices | Backfill OHLCV bars via market-data provider; US provider uses Twelve Data |
-| 3 | update-latest | Refresh latest prices via market-data provider; US provider uses Finnhub /quote |
+| 2 | sync-prices | Backfill OHLCV bars via market-data provider; US uses Twelve Data, CN uses AkShare |
+| 3 | update-latest | Refresh latest prices via market-data provider; US uses Finnhub, CN uses AkShare |
 | 4 | sync-profiles | Fetch provider profiles for all stocks missing/stale (24h TTL) |
 | 5 | generate-analyses | Generate AI analysis for stocks with profile but no analysis (permanent) |
 | 6 | prewarm-cache | Build stock detail responses and store them in `stocks.cached_response` |

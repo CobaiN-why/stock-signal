@@ -13,7 +13,7 @@ Multi-source market signal dashboard. It monitors finance bloggers, extracts sto
 - AI-powered stock analysis reports through the configured analysis provider
 - In-page signal event stream for new stocks, sector mentions, sentiment flips, divergence, and ingest errors
 - Sector ETF recommendation module, with ETF instruments stored as first-class tracked assets
-- Provider-based market data integration; US currently uses Twelve Data for daily bars and Finnhub for latest price/profile
+- Provider-based market data integration; US uses Twelve Data/Finnhub, CN uses a Python AkShare bridge
 
 ## Tech Stack
 
@@ -43,6 +43,35 @@ See `.env.example` for the full list:
 - `ANALYSIS_AI_PROVIDER` / `ANALYSIS_AI_MODEL` — Optional override for stock analysis reports
 - `POST_SOURCE` — Post source provider; currently `twitter`
 - `TWELVE_DATA_API_KEY` / `FINNHUB_API_KEY` — US market data providers
+- `CN_MARKET_DATA_PYTHON` — Python executable for the AkShare CN provider, defaults to `python3`
+
+## China Market Data
+
+CN stock and ETF bars are fetched through `scripts/cn-akshare-provider.py`, which calls AkShare from Python. On Linux install:
+
+```bash
+python3 -m pip install akshare pandas
+```
+
+Seed common A-share stocks/ETFs:
+
+```bash
+npx prisma db seed
+```
+
+Sync one CN instrument:
+
+```bash
+curl -X POST "http://127.0.0.1:3000/api/cron/sync-prices?market=CN&ticker=600519" \
+  -H "Authorization: Bearer <CRON_SECRET>"
+```
+
+Sync all seeded CN instruments:
+
+```bash
+curl -X POST "http://127.0.0.1:3000/api/cron/sync-prices?market=CN&includeSeeded=true" \
+  -H "Authorization: Bearer <CRON_SECRET>"
+```
 
 ## Daily Automation
 

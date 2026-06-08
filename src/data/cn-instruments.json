@@ -1,0 +1,92 @@
+[
+  {
+    "ticker": "600519",
+    "name": "贵州茅台",
+    "assetType": "STOCK",
+    "keywords": ["贵州茅台", "茅台", "白酒龙头"]
+  },
+  {
+    "ticker": "300750",
+    "name": "宁德时代",
+    "assetType": "STOCK",
+    "keywords": ["宁德时代", "宁王", "动力电池"]
+  },
+  {
+    "ticker": "000001",
+    "name": "平安银行",
+    "assetType": "STOCK",
+    "keywords": ["平安银行"]
+  },
+  {
+    "ticker": "601318",
+    "name": "中国平安",
+    "assetType": "STOCK",
+    "keywords": ["中国平安", "平安保险"]
+  },
+  {
+    "ticker": "600036",
+    "name": "招商银行",
+    "assetType": "STOCK",
+    "keywords": ["招商银行", "招行"]
+  },
+  {
+    "ticker": "688981",
+    "name": "中芯国际",
+    "assetType": "STOCK",
+    "keywords": ["中芯国际", "中芯"]
+  },
+  {
+    "ticker": "002594",
+    "name": "比亚迪",
+    "assetType": "STOCK",
+    "keywords": ["比亚迪", "BYD"]
+  },
+  {
+    "ticker": "300760",
+    "name": "迈瑞医疗",
+    "assetType": "STOCK",
+    "keywords": ["迈瑞医疗", "迈瑞"]
+  },
+  {
+    "ticker": "601899",
+    "name": "紫金矿业",
+    "assetType": "STOCK",
+    "keywords": ["紫金矿业", "紫金"]
+  },
+  {
+    "ticker": "510300",
+    "name": "沪深300ETF",
+    "assetType": "ETF",
+    "keywords": ["沪深300ETF", "300ETF", "沪深300"]
+  },
+  {
+    "ticker": "510500",
+    "name": "中证500ETF",
+    "assetType": "ETF",
+    "keywords": ["中证500ETF", "500ETF", "中证500"]
+  },
+  {
+    "ticker": "159915",
+    "name": "创业板ETF",
+    "assetType": "ETF",
+    "keywords": ["创业板ETF", "创业板"]
+  },
+  {
+    "ticker": "512760",
+    "name": "芯片ETF",
+    "assetType": "ETF",
+    "keywords": ["芯片ETF", "半导体ETF"]
+  },
+  {
+    "ticker": "515790",
+    "name": "光伏ETF",
+    "assetType": "ETF",
+    "keywords": ["光伏ETF", "光伏"]
+  },
+  {
+    "ticker": "516160",
+    "name": "新能源ETF",
+    "assetType": "ETF",
+    "keywords": ["新能源ETF", "新能源车ETF"]
+  }
+]

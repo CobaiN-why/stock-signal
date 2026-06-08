@@ -8,8 +8,21 @@ export async function POST(req: NextRequest) {
   const authError = verifyCronAuth(req);
   if (authError) return authError;
 
+  const marketParam = req.nextUrl.searchParams.get("market");
+  const tickerParam = req.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const includeSeeded = req.nextUrl.searchParams.get("includeSeeded") === "true";
+  const market = marketParam ? normalizeMarket(marketParam) : null;
+
   const stocks = await prisma.stock.findMany({
-    where: { postStocks: { some: {} } },
+    where: tickerParam
+      ? {
+          market: market ?? "US",
+          ticker: tickerParam,
+        }
+      : {
+          ...(market ? { market } : {}),
+          ...(includeSeeded ? {} : { postStocks: { some: {} } }),
+        },
   });
 
   let updated = 0;

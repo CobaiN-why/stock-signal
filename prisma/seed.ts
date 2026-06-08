@@ -1,5 +1,6 @@
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import cnInstruments from "../src/data/cn-instruments.json";
 import keywords from "../src/data/keywords.json";
 import sectors from "../src/data/sectors.json";
 
@@ -25,6 +26,34 @@ async function main() {
         where: { market_keyword: { market: "US", keyword: kw.toLowerCase() } },
         update: {},
         create: { market: "US", keyword: kw.toLowerCase(), stockId: stock.id },
+      });
+    }
+  }
+
+  for (const instrument of cnInstruments) {
+    const stock = await prisma.stock.upsert({
+      where: { market_ticker: { market: "CN", ticker: instrument.ticker } },
+      update: {
+        assetType: instrument.assetType,
+        currency: "CNY",
+        companyName: instrument.name,
+        dataSymbol: instrument.ticker,
+      },
+      create: {
+        market: "CN",
+        ticker: instrument.ticker,
+        assetType: instrument.assetType,
+        currency: "CNY",
+        dataSymbol: instrument.ticker,
+        companyName: instrument.name,
+      },
+    });
+
+    for (const kw of instrument.keywords) {
+      await prisma.keywordMapping.upsert({
+        where: { market_keyword: { market: "CN", keyword: kw.toLowerCase() } },
+        update: { stockId: stock.id },
+        create: { market: "CN", keyword: kw.toLowerCase(), stockId: stock.id },
       });
     }
   }
@@ -84,6 +113,7 @@ async function main() {
           assetType: "ETF",
           currency: sectorConfig.market === "US" ? "USD" : "CNY",
           companyName: etf.name,
+          dataSymbol: etf.ticker,
           sectorId: sector.id,
         },
         create: {
@@ -91,6 +121,7 @@ async function main() {
           ticker: etf.ticker,
           assetType: "ETF",
           currency: sectorConfig.market === "US" ? "USD" : "CNY",
+          dataSymbol: etf.ticker,
           companyName: etf.name,
           sectorId: sector.id,
         },
@@ -122,7 +153,7 @@ async function main() {
   }
 
   console.log(
-    `Seeded ${Object.keys(keywords).length} stocks, ${sectors.length} sectors, and ETF recommendations`
+    `Seeded ${Object.keys(keywords).length} US stocks, ${cnInstruments.length} CN instruments, ${sectors.length} sectors, and ETF recommendations`
   );
 }
 

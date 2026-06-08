@@ -1,10 +1,11 @@
 import { normalizeMarket, type Market } from "@/lib/markets";
 import type { InstrumentRef, MarketDataProvider } from "@/lib/market-data/types";
+import { cnMarketDataProvider } from "@/lib/market-data/cn";
 import { usMarketDataProvider } from "@/lib/market-data/us";
 
-const providers: Record<Market, MarketDataProvider | null> = {
+const providers: Record<Market, MarketDataProvider> = {
   US: usMarketDataProvider,
-  CN: null,
+  CN: cnMarketDataProvider,
 };
 
 export function getMarketDataProvider(market: Market): MarketDataProvider {

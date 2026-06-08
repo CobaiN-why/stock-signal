@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import sys
+
+
+def fail(message, code=1):
+    print(json.dumps({"error": message}, ensure_ascii=False), file=sys.stderr)
+    raise SystemExit(code)
+
+
+try:
+    import akshare as ak
+except Exception:
+    fail("Python package 'akshare' is not installed. Run: pip install akshare pandas")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fetch China market data via AkShare")
+    parser.add_argument("command", choices=["bars", "quote", "profile"])
+    parser.add_argument("--symbol", required=True)
+    parser.add_argument("--asset-type", choices=["STOCK", "ETF"], default="STOCK")
+    parser.add_argument("--from-date")
+    parser.add_argument("--to-date")
+    return parser.parse_args()
+
+
+def compact_date(value):
+    if not value:
+        return value
+    return value.replace("-", "")
+
+
+def frame_to_bars(df):
+    if df is None or df.empty:
+        return []
+
+    bars = []
+    for _, row in df.iterrows():
+        date = str(row.get("日期", "")).strip()
+        if not date:
+            continue
+        bars.append(
+            {
+                "date": date,
+                "open": float(row.get("开盘", 0) or 0),
+                "high": float(row.get("最高", 0) or 0),
+                "low": float(row.get("最低", 0) or 0),
+                "close": float(row.get("收盘", 0) or 0),
+                "volume": int(float(row.get("成交量", 0) or 0)),
+            }
+        )
+    return bars
+
+
+def fetch_bars(symbol, asset_type, from_date, to_date):
+    start = compact_date(from_date)
+    end = compact_date(to_date)
+    if asset_type == "ETF":
+        df = ak.fund_etf_hist_em(
+            symbol=symbol,
+            period="daily",
+            start_date=start,
+            end_date=end,
+            adjust="qfq",
+        )
+    else:
+        df = ak.stock_zh_a_hist(
+            symbol=symbol,
+            period="daily",
+            start_date=start,
+            end_date=end,
+            adjust="qfq",
+        )
+    return frame_to_bars(df)
+
+
+def fetch_quote(symbol, asset_type):
+    try:
+        if asset_type == "ETF":
+            df = ak.fund_etf_spot_em()
+        else:
+            df = ak.stock_zh_a_spot_em()
+        row = df[df["代码"].astype(str) == symbol]
+        if not row.empty:
+            return float(row.iloc[0]["最新价"])
+    except Exception:
+        pass
+
+    bars = fetch_bars(symbol, asset_type, "20200101", "20991231")
+    return bars[-1]["close"] if bars else None
+
+
+def fetch_profile(symbol, asset_type):
+    if asset_type == "ETF":
+        try:
+            df = ak.fund_etf_spot_em()
+            row = df[df["代码"].astype(str) == symbol]
+            name = str(row.iloc[0]["名称"]) if not row.empty else symbol
+        except Exception:
+            name = symbol
+        return {
+            "shortName": name,
+            "longName": name,
+            "sector": "ETF",
+            "industry": "ETF",
+            "marketCap": None,
+            "pe": None,
+            "forwardPe": None,
+            "eps": None,
+            "dividendYield": None,
+            "fiftyTwoWeekHigh": None,
+            "fiftyTwoWeekLow": None,
+            "avgVolume": None,
+            "description": "",
+        }
+
+    try:
+        df = ak.stock_info_a_code_name()
+        row = df[df["code"].astype(str) == symbol]
+        name = str(row.iloc[0]["name"]) if not row.empty else symbol
+    except Exception:
+        name = symbol
+
+    return {
+        "shortName": name,
+        "longName": name,
+        "sector": "A股",
+        "industry": "A股",
+        "marketCap": None,
+        "pe": None,
+        "forwardPe": None,
+        "eps": None,
+        "dividendYield": None,
+        "fiftyTwoWeekHigh": None,
+        "fiftyTwoWeekLow": None,
+        "avgVolume": None,
+        "description": "",
+    }
+
+
+def main():
+    args = parse_args()
+    symbol = args.symbol.strip()
+
+    if args.command == "bars":
+        payload = fetch_bars(symbol, args.asset_type, args.from_date, args.to_date)
+    elif args.command == "quote":
+        payload = {"price": fetch_quote(symbol, args.asset_type)}
+    else:
+        payload = fetch_profile(symbol, args.asset_type)
+
+    print(json.dumps(payload, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
