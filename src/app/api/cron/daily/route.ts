@@ -102,6 +102,11 @@ async function runDailyJob() {
 
     for (const stock of stocks) {
       try {
+        // Rate-limit CN requests to avoid overwhelming Sina API
+        if (stock.market === "CN" && updated > 0) {
+          await new Promise((r) => setTimeout(r, 500));
+        }
+
         const price = await fetchLatestPrice({
           ticker: stock.ticker,
           market: normalizeMarket(stock.market),
