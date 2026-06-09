@@ -2,6 +2,8 @@ import { getAiModel, getAiProvider } from "@/lib/ai";
 
 type Sentiment = "bullish" | "bearish";
 
+const warnedAiErrors = new Set<string>();
+
 // English keywords: matched with word boundaries to avoid substring false positives
 // (e.g. "short timeframe" matching "short", "selling" matching "sell")
 const BULLISH_EN = [
@@ -33,12 +35,14 @@ const BEARISH_EN = [
 // Chinese keywords: no word boundaries needed (Chinese has no whitespace tokenization)
 const BULLISH_CN = [
   "加仓", "看好", "看多", "买入", "上车", "抄底", "起飞", "底部",
-  "利好", "做多", "建仓",
+  "利好", "做多", "建仓", "景气", "复苏", "突破", "上行", "反转",
+  "主线", "机会", "超预期", "高增长", "受益",
 ];
 
 const BEARISH_CN = [
   "减仓", "看空", "卖出", "下车", "见顶", "泡沫", "崩", "做空",
-  "利空", "清仓", "逃顶",
+  "利空", "清仓", "逃顶", "下行", "承压", "走弱", "退潮", "风险",
+  "低预期", "不及预期", "杀估值",
 ];
 
 const bullishEnRegexes = BULLISH_EN.map((p) => new RegExp(p, "i"));
@@ -69,7 +73,7 @@ export function detectSentimentByRules(text: string): Sentiment | null {
 
 export async function detectSentiment(
   text: string,
-  ticker: string
+  target: string
 ): Promise<Sentiment | null> {
   const rulesResult = detectSentimentByRules(text);
   if (rulesResult) return rulesResult;
@@ -78,19 +82,21 @@ export async function detectSentiment(
   if (!provider) return null;
 
   try {
-    const systemPrompt = `You are a financial market sentiment classifier. Your task is to determine whether the author of a tweet is BULLISH or BEARISH on a specific stock ticker.
+    const systemPrompt = `You are a financial market sentiment classifier. Your task is to determine whether the author of a social media post is BULLISH or BEARISH on a specific target.
+
+The target can be a stock ticker, ETF, sector, industry, investment theme, or market direction.
 
 DEFINITIONS:
-- BULLISH: The author expects the stock price to rise, or is expressing optimism about the stock. This includes: recommending to buy, holding long positions, setting price targets above current price, celebrating past gains on this stock, defending the stock against critics, listing it among promising picks, or expressing confidence in its future.
-- BEARISH: The author expects the stock price to fall, or is expressing pessimism about the stock. This includes: recommending to sell/short, warning about overvaluation, predicting decline, criticizing fundamentals, or expressing regret about holding.
+- BULLISH: The author expects the target to rise, outperform, attract capital, improve fundamentally, or become a promising market direction. This includes: recommending to buy, holding long exposure, setting upside targets, celebrating gains, defending a thesis, calling it a main theme, saying fundamentals are improving, or saying the target benefits from a trend.
+- BEARISH: The author expects the target to fall, underperform, lose capital, deteriorate fundamentally, or become a risky market direction. This includes: recommending to sell/short, warning about overvaluation, predicting decline, criticizing fundamentals, saying a theme is crowded/over, or expressing regret about holding.
 
 IMPORTANT RULES:
-1. Focus on MARKET SENTIMENT (what the author thinks the stock will do), not GENERAL EMOTION of the text.
-2. An author bragging about huge returns on a stock = BULLISH (they still believe in it).
-3. An author complaining that institutions shorted or "bear posted" their stock = BULLISH (they are defending it).
-4. Pay close attention to numbers: price targets, return percentages, and market cap projections indicate directional sentiment.
-5. If the author mentions the stock only in passing or as historical context without expressing a current view, reply unknown.
-6. A tweet may mention MULTIPLE tickers. You must classify sentiment ONLY for the specific ticker asked about. If the author is bullish on $A but mentions $B only as a comparison, competitor, or supply chain reference without expressing a view on $B, the answer for $B is unknown.
+1. Focus on MARKET SENTIMENT for the target, not general emotion.
+2. If the post says a sector/theme has improving demand, policy support, capital inflow, earnings upgrades, or a breakout, classify bullish.
+3. If the post says a sector/theme is crowded, deteriorating, overvalued, losing demand, or breaking down, classify bearish.
+4. If a stock is mentioned as a positive example inside a target sector, that can be bullish for the sector.
+5. If the author mentions the target only in passing or as historical context without expressing a current view, reply unknown.
+6. A post may mention multiple tickers or sectors. Classify sentiment ONLY for the requested target.
 
 FEW-SHOT EXAMPLES:
 
@@ -125,6 +131,22 @@ Tweet: "$QQQ was down today. In other news I had pizza for lunch."
 Ticker: QQQ
 Answer: unknown
 
+Tweet: "HBM demand is still underestimated. Advanced packaging capacity is the bottleneck and the whole semiconductor chain should keep seeing upgrades."
+Target: 半导体
+Answer: bullish
+
+Tweet: "AI capex is peaking, GPU orders are getting pulled forward, and semis look crowded here."
+Target: 半导体
+Answer: bearish
+
+Tweet: "政策继续加码，新能源车渗透率还有空间，电池链基本面在修复。"
+Target: 新能源
+Answer: bullish
+
+Tweet: "光伏价格战还没结束，库存压力很大，行业盈利继续下修。"
+Target: 光伏
+Answer: bearish
+
 Tweet: "Software bros happy about a 10-15% recovery after getting wiped 25-60%. Meanwhile AI names from $SNDK to $AAOI are casually up 200-1000%."
 Ticker: AAOI
 Answer: bullish
@@ -147,11 +169,10 @@ Reason: Author is defending their bullish thesis by showing critics were wrong. 
 
 Reply with exactly one word: bullish, bearish, or unknown. Nothing else.`;
 
-    // highlight the target ticker in the text so the model focuses on it
-    const highlighted = text.slice(0, 600).replace(
-      new RegExp(`\\$${ticker}`, "gi"),
-      `★$${ticker}★`
-    );
+    const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const highlighted = text
+      .slice(0, 800)
+      .replace(new RegExp(`\\$?${escapedTarget}`, "gi"), `★${target}★`);
 
     const answer = (
       await provider.chat(
@@ -162,7 +183,7 @@ Reply with exactly one word: bullish, bearish, or unknown. Nothing else.`;
           },
           {
             role: "user",
-            content: `Target ticker: $${ticker} (marked as ★$${ticker}★ in the tweet)\n\nTweet:\n"${highlighted}"`,
+            content: `Target: ${target} (marked as ★${target}★ when present)\n\nPost:\n"${highlighted}"`,
           },
         ],
         {
@@ -178,7 +199,13 @@ Reply with exactly one word: bullish, bearish, or unknown. Nothing else.`;
     if (answer === "bullish") return "bullish";
     if (answer === "bearish") return "bearish";
     return null;
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const key = message.slice(0, 120);
+    if (!warnedAiErrors.has(key)) {
+      warnedAiErrors.add(key);
+      console.warn(`Sentiment AI fallback failed: ${message}`);
+    }
     return null;
   }
 }
