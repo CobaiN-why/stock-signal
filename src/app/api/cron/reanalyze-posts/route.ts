@@ -6,6 +6,8 @@ import { analyzeSectorsAndSentiment } from "@/lib/sector-ai";
 import { inferSectorsFromStockMention } from "@/lib/stock-sector-mapping";
 import type { StockMention } from "@/lib/stock-identifier";
 import type { AssetType } from "@/lib/markets";
+import { fetchDailyBars } from "@/lib/market-data";
+import { normalizeMarket } from "@/lib/markets";
 
 /**
  * POST /api/cron/reanalyze-posts
@@ -206,6 +208,9 @@ export async function POST(req: NextRequest) {
       sectorMentions++;
     }
 
+    // Auto-sync missing ETF price data (fire-and-forget)
+    syncMissingEtfPrices(sectorMentionsById).catch(() => {});
+
     if (sectorMentionsById.size > 0) postsWithSectors++;
   }
 
@@ -214,4 +219,45 @@ export async function POST(req: NextRequest) {
     postsWithSectors,
     sectorMentions,
   });
+}
+
+async function syncMissingEtfPrices(
+  sectorMentionsById: Map<string, { sectorId: string }>
+) {
+  const sectorIds = Array.from(sectorMentionsById.keys());
+  if (sectorIds.length === 0) return;
+
+  const etfs = await prisma.sectorEtf.findMany({
+    where: { sectorId: { in: sectorIds } },
+    select: { ticker: true, market: true },
+  });
+
+  for (const etf of etfs) {
+    const stock = await prisma.stock.findUnique({
+      where: { market_ticker: { market: etf.market, ticker: etf.ticker } },
+      select: { id: true },
+    });
+    if (!stock) continue;
+
+    const barCount = await prisma.priceHistory.count({
+      where: { stockId: stock.id },
+    });
+    if (barCount > 0) continue;
+
+    fetchDailyBars(
+      { ticker: etf.ticker, market: normalizeMarket(etf.market), assetType: "ETF" },
+      new Date(Date.now() - 180 * 86400000),
+      new Date()
+    )
+      .then(async (bars) => {
+        for (const bar of bars) {
+          await prisma.priceHistory.upsert({
+            where: { stockId_date: { stockId: stock.id, date: bar.date } },
+            update: { open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume },
+            create: { stockId: stock.id, date: bar.date, open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume },
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }
 }

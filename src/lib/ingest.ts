@@ -5,6 +5,8 @@ import {
   type Sentiment,
   type UnifiedAnalysis,
 } from "@/lib/sector-ai";
+import { fetchDailyBars } from "@/lib/market-data";
+import { normalizeMarket } from "@/lib/markets";
 import {
   ensureStockExists,
   identifyStocksAcrossMarkets,
@@ -227,6 +229,11 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
           });
         }
 
+        // ── Step 6: Auto-sync missing ETF prices (fire-and-forget, don't block) ──
+        autoSyncMissingEtfPrices(sectorMentionsById).catch((err) =>
+          console.warn("auto-sync etf prices failed:", err)
+        );
+
         newPosts++;
       }
 
@@ -402,6 +409,63 @@ async function persistStockMention(input: {
   });
 
   return { stockId, sentiment, dbSectors };
+}
+
+/**
+ * Fire-and-forget: for every ETF ticker in mentioned sectors, check if
+ * price_history is empty and auto-fetch missing bars.
+ */
+async function autoSyncMissingEtfPrices(
+  sectorMentionsById: Map<string, SectorMentionInput>
+) {
+  const sectorIds = Array.from(sectorMentionsById.keys());
+  if (sectorIds.length === 0) return;
+
+  // Get all ETFs for these sectors
+  const etfs = await prisma.sectorEtf.findMany({
+    where: { sectorId: { in: sectorIds } },
+    select: { ticker: true, market: true },
+  });
+
+  // Find which ones lack price data
+  const tickerSet = new Set<string>();
+  for (const etf of etfs) {
+    const key = `${etf.market}:${etf.ticker}`;
+    if (tickerSet.has(key)) continue;
+    tickerSet.add(key);
+
+    const stock = await prisma.stock.findUnique({
+      where: { market_ticker: { market: etf.market, ticker: etf.ticker } },
+      select: { id: true },
+    });
+    if (!stock) continue;
+
+    const barCount = await prisma.priceHistory.count({
+      where: { stockId: stock.id },
+    });
+    if (barCount > 0) continue;
+
+    // No price data — fetch now (fire-and-forget, don't block the loop)
+    fetchDailyBars(
+      { ticker: etf.ticker, market: normalizeMarket(etf.market), assetType: "ETF" },
+      new Date(Date.now() - 180 * 86400000), // 6 months
+      new Date()
+    )
+      .then(async (bars) => {
+        if (bars.length === 0) return;
+        for (const bar of bars) {
+          await prisma.priceHistory.upsert({
+            where: { stockId_date: { stockId: stock.id, date: bar.date } },
+            update: { open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume },
+            create: { stockId: stock.id, date: bar.date, open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume },
+          }).catch(() => {});
+        }
+        console.log(`auto-synced ${bars.length} bars for ${etf.market}:${etf.ticker}`);
+      })
+      .catch((err) => {
+        console.warn(`auto-sync failed for ${etf.market}:${etf.ticker}: ${String(err).slice(0, 80)}`);
+      });
+  }
 }
 
 // ── Helpers ──
