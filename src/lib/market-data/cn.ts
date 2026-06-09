@@ -1,16 +1,15 @@
 /**
- * CN market data provider — Sina Finance (新浪财经) HTTP API.
+ * CN market data provider — multiple free sources.
  *
- * Sina Finance provides free, no-registration K-line and quote data via JSON/JS APIs.
- * This is one of the most stable and widely-used free data sources for A-shares.
+ * K-line (historical OHLCV): Tencent Finance API (前复权 daily bars)
+ *   URL: https://web.ifzq.gtimg.cn/appstock/app/fqkline/get
+ *   Params: param={symbol},day,,,{count},qfq
+ *   Returns forward-adjusted (前复权) data matching trading apps like 东方财富
+ *   Format: [date, open, close, high, low, volume] — volume in lots (手)
  *
- * K-line API:
- *   https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData
- *   Params: symbol=sh512760, scale=240 (daily), datalen=N
- *
- * Quote API:
- *   https://hq.sinajs.cn/list=sh512760
- *   Returns JS var string with real-time price
+ * Latest price: Sina Finance real-time quote
+ *   URL: https://hq.sinajs.cn/list={symbol}
+ *   Returns JS var with real-time price at field index 3
  */
 
 import type {
@@ -20,9 +19,20 @@ import type {
   StockProfile,
 } from "@/lib/market-data/types";
 
-const SINA_KLINE_URL =
-  "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData";
+const TENCENT_KLINE_URL =
+  "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get";
 const SINA_QUOTE_URL = "https://hq.sinajs.cn/list=";
+
+function tencentSymbol(instrument: InstrumentRef): string {
+  const code = (instrument.dataSymbol || instrument.ticker).replace(
+    /\.(SH|SZ|BJ)$/i,
+    ""
+  );
+  const prefix = code.charAt(0);
+  return prefix === "5" || prefix === "6" || prefix === "9"
+    ? `sh${code}`
+    : `sz${code}`;
+}
 
 function sinaSymbol(instrument: InstrumentRef): string {
   const code = (instrument.dataSymbol || instrument.ticker).replace(
@@ -30,65 +40,67 @@ function sinaSymbol(instrument: InstrumentRef): string {
     ""
   );
   const prefix = code.charAt(0);
-  // SH: 5xxxxx, 6xxxxx, 9xxxxx  |  SZ: 0xxxxx, 1xxxxx, 3xxxxx, 7xxxxx
   return prefix === "5" || prefix === "6" || prefix === "9"
     ? `sh${code}`
     : `sz${code}`;
 }
 
-interface SinaKlineRow {
-  day: string;
-  open: string;
-  high: string;
-  low: string;
-  close: string;
-  volume: string;
+interface TencentKlineResponse {
+  code: number;
+  msg: string;
+  data?: Record<
+    string,
+    {
+      qfqday?: string[][]; // [date, open, close, high, low, volume]
+      qt?: unknown;
+    }
+  >;
 }
 
-async function fetchSinaKlines(
+async function fetchTencentKlines(
   symbol: string,
   from: Date,
   to: Date
 ): Promise<DailyBar[]> {
-  // Request enough data points to cover the range (≈ 250 trading days/year)
-  const datalen = 300;
-
-  const url = `${SINA_KLINE_URL}?symbol=${symbol}&scale=240&datalen=${datalen}`;
+  // Request up to 320 data points (~15 months of daily data)
+  const url = `${TENCENT_KLINE_URL}?param=${symbol},day,,,320,qfq`;
 
   const resp = await fetch(url, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      Referer: "https://finance.sina.com.cn/",
+      Referer: "https://gu.qq.com/",
     },
     signal: AbortSignal.timeout(15000),
   });
 
   if (!resp.ok) {
-    throw new Error(`Sina HTTP ${resp.status}`);
+    throw new Error(`Tencent HTTP ${resp.status}`);
   }
 
-  const text = await resp.text();
-  if (!text || text.trim() === "null") return [];
+  const body = (await resp.json()) as TencentKlineResponse;
+  if (body.code !== 0 || !body.data) return [];
 
-  const rows = JSON.parse(text) as SinaKlineRow[];
-  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const stockData = body.data[symbol];
+  if (!stockData?.qfqday || stockData.qfqday.length === 0) return [];
 
   const fromTime = from.getTime();
   const toTime = to.getTime();
 
-  return rows
+  return stockData.qfqday
     .map((row) => {
-      const date = new Date(row.day);
+      // Tencent format: [date, open, close, high, low, volume]
+      if (row.length < 6) return null;
+
+      const date = new Date(row[0]);
       if (Number.isNaN(date.getTime())) return null;
-      // Filter by date range (Sina returns N most recent points, no date params)
       if (date.getTime() < fromTime || date.getTime() > toTime) return null;
 
-      const open = Number(row.open);
-      const high = Number(row.high);
-      const low = Number(row.low);
-      const close = Number(row.close);
-      const volume = Number(row.volume);
+      const open = Number(row[1]);
+      const close = Number(row[2]);
+      const high = Number(row[3]);
+      const low = Number(row[4]);
+      const volume = Number(row[5]);
 
       if (
         Number.isNaN(open) ||
@@ -100,7 +112,14 @@ async function fetchSinaKlines(
         return null;
       }
 
-      return { date, open, high, low, close, volume };
+      return {
+        date,
+        open,
+        high,
+        low,
+        close,
+        volume: Math.round(volume * 100), // lots (手) → shares
+      };
     })
     .filter(Boolean) as DailyBar[];
 }
@@ -125,7 +144,6 @@ async function fetchSinaLatestPrice(symbol: string): Promise<number | null> {
   if (!match) return null;
 
   const fields = match[1].split(",");
-  // Field index 3 is current price
   const price = Number(fields[3]);
   return price > 0 ? price : null;
 }
@@ -138,8 +156,8 @@ export const cnMarketDataProvider: MarketDataProvider = {
     from: Date,
     to: Date
   ): Promise<DailyBar[]> {
-    const symbol = sinaSymbol(instrument);
-    return fetchSinaKlines(symbol, from, to);
+    const symbol = tencentSymbol(instrument);
+    return fetchTencentKlines(symbol, from, to);
   },
 
   async fetchLatestPrice(instrument: InstrumentRef): Promise<number | null> {
