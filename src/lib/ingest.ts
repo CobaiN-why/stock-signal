@@ -9,6 +9,7 @@ import {
   identifyStocksAcrossMarkets,
   type StockMention,
 } from "@/lib/stock-identifier";
+import { expandSectorMentionsWithLinks } from "@/lib/sector-links";
 import { getPostSource } from "@/lib/social";
 import {
   recordDivergence,
@@ -88,7 +89,11 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
           stockMentions++;
         }
 
-        for (const sector of sectorMentionsById.values()) {
+        const expandedSectorMentions = await expandSectorMentionsWithLinks(
+          sectorMentionsById.values()
+        );
+
+        for (const sector of expandedSectorMentions) {
           const sentiment = await detectSentiment(sourcePost.text, sector.name);
           await prisma.postSector.create({
             data: {
@@ -204,8 +209,8 @@ async function persistStockMention(input: {
         slug: stockSector.sector.slug,
         name: stockSector.sector.name,
         evidence: `由 ${input.mention.ticker} 推断`,
-        confidence: 0.45,
-    }
+        confidence: 0.25,
+      }
     : null;
 
   if (!sentiment) return { stockId, sentiment, sector: inferredSector };

@@ -9,6 +9,7 @@ import {
   identifyStocksAcrossMarkets,
   type StockMention,
 } from "../src/lib/stock-identifier.js";
+import { expandSectorMentionsWithLinks } from "../src/lib/sector-links.js";
 import {
   detectSentiment,
   detectSentimentByRules,
@@ -127,7 +128,7 @@ async function inferSectorFromStock(stockId: string, ticker: string): Promise<Se
     slug: stock.sector.slug,
     name: stock.sector.name,
     evidence: `由 ${ticker} 推断`,
-    confidence: 0.45,
+    confidence: 0.25,
   };
 }
 
@@ -294,7 +295,11 @@ async function main() {
       }
 
       const expectedSectorIds = new Set<string>();
-      for (const sector of sectorById.values()) {
+      const expandedSectorMentions = await expandSectorMentionsWithLinks(
+        sectorById.values()
+      );
+
+      for (const sector of expandedSectorMentions) {
         expectedSectorIds.add(sector.sectorId);
         affectedSectorIds.add(sector.sectorId);
 
@@ -344,7 +349,7 @@ async function main() {
 
       console.log(
         `✓ ${post.postedAt.toISOString().slice(0, 10)} @${post.blogger.xUsername}` +
-          ` stocks=${stockMatches.length} sectors=${sectorById.size}`
+          ` stocks=${stockMatches.length} sectors=${expandedSectorMentions.length}`
       );
     } catch (err) {
       stats.errors++;

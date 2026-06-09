@@ -94,7 +94,15 @@ Scheduled daily at 02:00 Beijing time via cron-job.org.
 Sector mentions have two strengths:
 
 - **Direct** — the post explicitly mentions a sector keyword such as `半导体`, `芯片`, or `AI infrastructure`.
-- **Weak inferred** — the post mentions a stock already mapped to a sector, such as `NVDA` implying semiconductors. These are shown as weak associations on ETF charts.
+- **Weak inferred** — the post mentions a stock already mapped to a sector, such as `NVDA` implying semiconductors. These use low confidence and are shown as weak associations on ETF charts.
+- **Cross-market weak inferred** — the post mentions a US/CN sector that maps to the other market, such as US semiconductors mapping to A-share semiconductor ETFs. These use very low confidence.
+
+Default confidence levels:
+
+- `1.0` direct ETF mention
+- `0.8-1.0` direct sector keyword mention
+- `0.25` stock-to-sector inference
+- `0.15-0.18` cross-market sector inference
 
 Sector ETF cards are sorted by the configured size-priority `rank`. Clicking an ETF switches the main chart to that ETF and overlays both direct ETF mentions and related sector opinions.
 

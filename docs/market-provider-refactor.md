@@ -30,7 +30,7 @@ The database is the source of truth.
 
 - Posts are stored in `posts`.
 - Stock mentions are stored in `post_stocks`.
-- Sector mentions are stored in `post_sectors`. `confidence >= 0.7` means a direct sector mention; lower confidence means an inferred sector association from a mentioned stock.
+- Sector mentions are stored in `post_sectors`. `confidence >= 0.7` means a direct sector mention; `0.25` means an inferred sector association from a mentioned stock; `0.15-0.18` means a cross-market sector mapping.
 - Bloggers are a shared watchlist. `bloggers.market` is retained only for compatibility with existing rows and is not used to limit ingest.
 - Stocks and ETFs are both stored in `stocks`; ETFs use `asset_type = "ETF"`.
 - Sector definitions are stored in `sectors`.
@@ -42,6 +42,8 @@ The database is the source of truth.
 `Stock.ticker` is not globally unique anymore. Code should use `market + ticker`, exposed by Prisma as `market_ticker`.
 
 ETF charts use the ETF's `sectorId` to overlay related sector opinions, not just posts that directly mention the ETF ticker. This lets posts about NVDA, for example, appear as weak semiconductor-context markers on a semiconductor ETF chart while remaining clearly labeled as inferred.
+
+Cross-market sector links are configured in `src/data/sector-links.json`. They intentionally use very low confidence so they act as idea discovery signals, not direct evidence that the author discussed the target market.
 
 ## AI Configuration
 

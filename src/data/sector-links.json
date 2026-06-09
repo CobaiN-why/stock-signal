@@ -1,0 +1,42 @@
+[
+  {
+    "sourceMarket": "US",
+    "sourceSlug": "semiconductors",
+    "targetMarket": "CN",
+    "targetSlug": "semiconductors",
+    "confidence": 0.18,
+    "evidence": "跨市场半导体映射"
+  },
+  {
+    "sourceMarket": "US",
+    "sourceSlug": "ai_infrastructure",
+    "targetMarket": "CN",
+    "targetSlug": "semiconductors",
+    "confidence": 0.15,
+    "evidence": "跨市场 AI 算力映射到 A股半导体"
+  },
+  {
+    "sourceMarket": "US",
+    "sourceSlug": "electric_vehicles",
+    "targetMarket": "CN",
+    "targetSlug": "new_energy",
+    "confidence": 0.18,
+    "evidence": "跨市场电动车映射到 A股新能源"
+  },
+  {
+    "sourceMarket": "CN",
+    "sourceSlug": "semiconductors",
+    "targetMarket": "US",
+    "targetSlug": "semiconductors",
+    "confidence": 0.18,
+    "evidence": "跨市场半导体映射"
+  },
+  {
+    "sourceMarket": "CN",
+    "sourceSlug": "new_energy",
+    "targetMarket": "US",
+    "targetSlug": "electric_vehicles",
+    "confidence": 0.15,
+    "evidence": "跨市场新能源映射到美股电动车"
+  }
+]
