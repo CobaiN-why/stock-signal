@@ -92,11 +92,11 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
           stockMentions++;
         }
 
-        const expandedSectorMentions = await expandSectorMentionsWithLinks(
-          sectorMentionsById.values()
-        );
+        // Skip cross-market expansion — keep only direct matches for accuracy
+        // const expandedSectorMentions = await expandSectorMentionsWithLinks(...)
+        const directSectorMentions = Array.from(sectorMentionsById.values());
 
-        for (const sector of expandedSectorMentions) {
+        for (const sector of directSectorMentions) {
           const sentiment = await detectSentiment(sourcePost.text, sector.name);
           await prisma.postSector.create({
             data: {
