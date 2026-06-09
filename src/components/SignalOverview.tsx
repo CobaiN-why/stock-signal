@@ -52,6 +52,7 @@ export default function SignalOverview() {
   const [loading, setLoading] = useState(true);
   const [selectedSector, setSelectedSector] = useState<SectorSummary | null>(null);
   const [chartForSector, setChartForSector] = useState<string | null>(null);
+  const [chartMarket, setChartMarket] = useState<string>("US");
   const detailRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to detail when a sector is selected
@@ -180,6 +181,7 @@ export default function SignalOverview() {
           onClick={() => {
             if (strongest) {
               setChartForSector(strongest.primaryEtf?.ticker ?? null);
+              setChartMarket(strongest.primaryEtf?.market ?? "US");
               setSelectedSector(strongest);
             }
           }}
@@ -291,6 +293,7 @@ export default function SignalOverview() {
           <SectorDetail
             slug={selectedSector.slug}
             initialChartTicker={chartForSector ?? undefined}
+            initialChartMarket={chartMarket}
             onClose={() => { setSelectedSector(null); setChartForSector(null); }}
           />
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import recommendedBloggers from "@/data/recommended-bloggers.json";
 
 interface RecommendedUser {
   xUsername: string;
@@ -11,6 +12,15 @@ interface RecommendedUser {
   tweetCount: number;
   avatarUrl: string | null;
   verified: boolean;
+}
+
+interface CuratedBlogger {
+  xUsername: string;
+  displayName: string;
+  description: string;
+  category: string;
+  market: string;
+  reason: string;
 }
 
 interface Props {
@@ -30,6 +40,8 @@ interface ScoredUser extends RecommendedUser {
   sharedBy?: number;
 }
 
+type TabType = "curated" | "search" | "network";
+
 export default function BloggerRecommend({ onAdded }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [results, setResults] = useState<ScoredUser[]>([]);
@@ -37,8 +49,20 @@ export default function BloggerRecommend({ onAdded }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingNetwork, setLoadingNetwork] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"search" | "network">("search");
+  const [tab, setTab] = useState<TabType>("curated");
   const [addingUser, setAddingUser] = useState<string | null>(null);
+  const [addedUsers, setAddedUsers] = useState<Set<string>>(new Set());
+
+  // Group curated bloggers by category
+  const curatedByCategory = (recommendedBloggers as CuratedBlogger[]).reduce(
+    (acc, b) => {
+      const cat = b.category || "其他";
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(b);
+      return acc;
+    },
+    {} as Record<string, CuratedBlogger[]>
+  );
 
   const handleNetworkMine = async () => {
     setLoadingNetwork(true);
@@ -103,6 +127,36 @@ export default function BloggerRecommend({ onAdded }: Props) {
     }
   };
 
+  const handleAddCurated = async (blogger: CuratedBlogger) => {
+    setAddingUser(blogger.xUsername);
+    try {
+      const colors = ["#2563eb", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316"];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+
+      const res = await fetch("/api/bloggers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          xUsername: blogger.xUsername,
+          displayName: blogger.displayName,
+          color,
+        }),
+      });
+
+      if (res.ok) {
+        setAddedUsers((prev) => new Set(prev).add(blogger.xUsername));
+        onAdded();
+      } else {
+        const data = await res.json();
+        setError(data.error ?? "添加失败");
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setAddingUser(null);
+    }
+  };
+
   return (
     <div className="mb-6">
       <button
@@ -119,6 +173,17 @@ export default function BloggerRecommend({ onAdded }: Props) {
         <div className="mt-3 p-4 bg-[var(--bg-hover)] border border-[var(--border)] rounded-xl">
           {/* Tab toggle */}
           <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => setTab("curated")}
+              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                tab === "curated"
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                  : "border-[var(--border)] bg-[var(--bg-card)]"
+              }`}
+            >
+              ✨ 精选推荐
+              <span className="ml-1 text-[var(--text-muted)]">({recommendedBloggers.length})</span>
+            </button>
             <button
               onClick={() => setTab("search")}
               className={`text-xs px-3 py-1 rounded-full border transition-colors ${
@@ -142,6 +207,68 @@ export default function BloggerRecommend({ onAdded }: Props) {
               <span className="ml-1 text-[var(--text-muted)]">(共同关注)</span>
             </button>
           </div>
+
+          {/* Curated picks */}
+          {tab === "curated" && (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {Object.entries(curatedByCategory).map(([category, bloggers]) => (
+              <div key={category}>
+                <div className="text-xs font-medium text-[var(--text-secondary)] mb-2 sticky top-0 bg-[var(--bg-hover)] py-1">
+                  {category}
+                </div>
+                <div className="space-y-2">
+                  {bloggers.map((blogger) => (
+                    <div
+                      key={blogger.xUsername}
+                      className="flex items-start gap-3 p-2 rounded-lg bg-[var(--bg-card)] text-sm"
+                    >
+                      <span className="w-10 h-10 rounded-full bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)] font-bold text-sm shrink-0 mt-0.5">
+                        {blogger.displayName.slice(0, 2)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {blogger.displayName}
+                          </span>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] font-mono">
+                            {blogger.market}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] font-mono">
+                          @{blogger.xUsername}
+                        </p>
+                        <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-2">
+                          {blogger.description}
+                        </p>
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          💡 {blogger.reason}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleAddCurated(blogger)}
+                        disabled={
+                          addingUser === blogger.xUsername ||
+                          addedUsers.has(blogger.xUsername)
+                        }
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity shrink-0 ${
+                          addedUsers.has(blogger.xUsername)
+                            ? "bg-green-100 text-green-700"
+                            : "bg-[var(--accent)] text-white hover:opacity-90"
+                        } disabled:opacity-50`}
+                      >
+                        {addedUsers.has(blogger.xUsername)
+                          ? "✓ 已添加"
+                          : addingUser === blogger.xUsername
+                            ? "添加中..."
+                            : "+ 跟踪"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          )}
 
           {/* Preset search buttons */}
           {tab === "search" && (

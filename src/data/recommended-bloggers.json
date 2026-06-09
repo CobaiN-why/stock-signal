@@ -1,0 +1,130 @@
+[
+  {
+    "xUsername": "dylan522p",
+    "displayName": "Dylan Patel",
+    "description": "半导体/AI基础设施深度研究，GPU、数据中心、云厂商CapEx分析。独立半导体分析师标杆，机构级研究质量。",
+    "category": "半导体/AI",
+    "market": "US",
+    "reason": "半导体研究天花板，芯片/AI基建/数据中心全链条覆盖"
+  },
+  {
+    "xUsername": "firstadopter",
+    "displayName": "Tae Kim",
+    "description": "半导体、芯片、AI基础设施、科技公司基本面。资深科技记者，深度产业链sourcing。",
+    "category": "半导体/AI",
+    "market": "US",
+    "reason": "科技产业深度新闻和分析，芯片/AI基建方向"
+  },
+  {
+    "xUsername": "tengyanai",
+    "displayName": "Teng Yan",
+    "description": "半导体周期与AI趋势分析，专注芯片产业链和AI需求联动。",
+    "category": "半导体/AI",
+    "market": "US",
+    "reason": "半周期+AI双重视角，产业链趋势判断"
+  },
+  {
+    "xUsername": "degentradinglsd",
+    "displayName": "Degen Trading",
+    "description": "AI算力、数据中心、半导体交易机会分析。基本面+交易双重视角。",
+    "category": "半导体/AI",
+    "market": "US",
+    "reason": "AI算力和数据中心方向交易机会"
+  },
+  {
+    "xUsername": "lordwilliamuk",
+    "displayName": "Lord William",
+    "description": "半导体、芯片、AI算力长期跟踪研究。深度了解产业链上下游。",
+    "category": "半导体/AI",
+    "market": "US",
+    "reason": "半导体/AI算力长期跟踪，深度研究"
+  },
+  {
+    "xUsername": "_wmoon",
+    "displayName": "WMoon",
+    "description": "半导体财报分析与估值研究，专注财报季深度解读。",
+    "category": "半导体/AI",
+    "market": "US",
+    "reason": "半导体财报和估值分析专家"
+  },
+  {
+    "xUsername": "0xxsmart",
+    "displayName": "Smart",
+    "description": "半导体、财报、科技股机会挖掘。财报季特别活跃。",
+    "category": "半导体/AI",
+    "market": "US",
+    "reason": "财报季活跃，科技股机会挖掘"
+  },
+  {
+    "xUsername": "gerberkawasaki",
+    "displayName": "Ross Gerber",
+    "description": "科技股投资分析，特斯拉/成长股/市场情绪。知名科技股投资者。",
+    "category": "科技股",
+    "market": "US",
+    "reason": "科技股投资风向标，特斯拉/成长股权威"
+  },
+  {
+    "xUsername": "bitfurygeorge",
+    "displayName": "George",
+    "description": "AI算力、数据中心、半导体、基础设施周期分析。",
+    "category": "半导体/AI",
+    "market": "US",
+    "reason": "AI基础设施周期视角，数据中心方向"
+  },
+  {
+    "xUsername": "charleskoh",
+    "displayName": "Charles Koh",
+    "description": "电动车、机器人、软件SaaS、云计算、科技股多赛道覆盖。",
+    "category": "科技股",
+    "market": "US",
+    "reason": "科技多赛道覆盖，电动车/机器人/SaaS"
+  },
+  {
+    "xUsername": "charliebilello",
+    "displayName": "Charlie Bilello",
+    "description": "市场数据、图表、历史统计。无噪音纯数据流，Creative Planning首席市场策略师。",
+    "category": "宏观/数据",
+    "market": "US",
+    "reason": "无噪音纯数据流，图表和历史统计权威"
+  },
+  {
+    "xUsername": "bespokeinvest",
+    "displayName": "Bespoke Investment",
+    "description": "数据驱动的市场研究，经济指标和趋势分析。专业研究机构。",
+    "category": "宏观/数据",
+    "market": "US",
+    "reason": "数据驱动市场研究，经济指标和趋势分析"
+  },
+  {
+    "xUsername": "elerianm",
+    "displayName": "Mohamed El-Erian",
+    "description": "全球宏观、央行政策、固定收益。Allianz首席经济顾问，前PIMCO CEO。",
+    "category": "宏观/数据",
+    "market": "US",
+    "reason": "全球宏观权威，央行政策和市场深度见解"
+  },
+  {
+    "xUsername": "lianyanshe",
+    "displayName": "联研社",
+    "description": "AI科技股方向分析，财报解读，期权策略。中文AI科技投资研究。",
+    "category": "中文/科技",
+    "market": "US",
+    "reason": "中文AI科技方向最佳补充，财报+期权双视角"
+  },
+  {
+    "xUsername": "yiqifacai",
+    "displayName": "一起发财",
+    "description": "半导体、宏观流动性、科技股跨市场联动分析。",
+    "category": "中文/科技",
+    "market": "CN",
+    "reason": "跨市场联动视角，半导体+宏观流动性"
+  },
+  {
+    "xUsername": "xiaomustock",
+    "displayName": "小木美股",
+    "description": "AI半导体产业链分析，美股科技股研究。AI供应链深度跟踪。",
+    "category": "中文/科技",
+    "market": "US",
+    "reason": "AI半导体产业链中文分析，美股科技股"
+  }
+]

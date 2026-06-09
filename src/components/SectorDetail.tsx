@@ -66,14 +66,16 @@ interface SectorDetailData {
 interface Props {
   slug: string;
   initialChartTicker?: string;
+  initialChartMarket?: string;
   onClose: () => void;
 }
 
-export default function SectorDetail({ slug, initialChartTicker, onClose }: Props) {
+export default function SectorDetail({ slug, initialChartTicker, initialChartMarket, onClose }: Props) {
   const { market } = useMarket();
   const [data, setData] = useState<SectorDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartTicker, setChartTicker] = useState<string | null>(initialChartTicker ?? null);
+  const [chartMarket, setChartMarket] = useState<string>(market);
   const [chartBlogger, setChartBlogger] = useState<string | null>(null);
   const [highlightPostId, setHighlightPostId] = useState<string | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -82,19 +84,21 @@ export default function SectorDetail({ slug, initialChartTicker, onClose }: Prop
   useEffect(() => {
     if (initialChartTicker) {
       setChartTicker(initialChartTicker);
+      setChartMarket(initialChartMarket ?? market);
       setTimeout(() => {
         chartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 200);
     }
-  }, [initialChartTicker]);
+  }, [initialChartTicker, initialChartMarket, market]);
 
   const handleMentionClick = (postId: string) => {
     setHighlightPostId(postId);
     setTimeout(() => setHighlightPostId(null), 3000);
   };
 
-  const handleSelectTicker = (ticker: string) => {
+  const handleSelectTicker = (ticker: string, etfMarket?: string) => {
     setChartTicker(ticker);
+    setChartMarket(etfMarket ?? market);
     // Auto-scroll to chart after render
     setTimeout(() => {
       chartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -239,7 +243,7 @@ export default function SectorDetail({ slug, initialChartTicker, onClose }: Prop
             {data.etfs.map((etf, i) => (
               <button
                 key={etf.ticker}
-                onClick={() => handleSelectTicker(etf.ticker)}
+                onClick={() => handleSelectTicker(etf.ticker, etf.market)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
                   chartTicker === etf.ticker
                     ? "bg-[var(--accent)]/10 border-[var(--accent)]/40 text-[var(--accent)]"
@@ -273,7 +277,7 @@ export default function SectorDetail({ slug, initialChartTicker, onClose }: Prop
           </div>
           <div className="p-3">
             <PriceChart
-              market={market}
+              market={chartMarket as "US" | "CN"}
               ticker={chartTicker}
               selectedBlogger={chartBlogger}
               onMentionClick={handleMentionClick}
