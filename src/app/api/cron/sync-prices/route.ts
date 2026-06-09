@@ -37,6 +37,11 @@ export async function POST(req: NextRequest) {
       const to = new Date();
       if (from >= to) continue;
 
+      // Rate-limit delay for CN market (Eastmoney anti-scraping)
+      if (stock.market === "CN" && synced > 0) {
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+
       const bars = await fetchDailyBars(
         {
           ticker: stock.ticker,
@@ -81,6 +86,10 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.error(`Error syncing prices for ${stock.ticker}:`, err);
+      // Back off on error (likely rate-limited)
+      if (stock.market === "CN") {
+        await new Promise((r) => setTimeout(r, 15000));
+      }
     }
   }
 
