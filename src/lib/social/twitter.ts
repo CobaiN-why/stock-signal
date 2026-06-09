@@ -75,4 +75,26 @@ export const twitterPostSource: PostSource = {
       })
     );
   },
+
+  async fetchFollowing(username: string): Promise<string[]> {
+    const apiKey = process.env.TWITTER_API_KEY;
+    if (!apiKey) throw new Error("TWITTER_API_KEY not set");
+
+    try {
+      const res = await fetch(
+        `https://api.twitterapi.io/twitter/user/followings?userName=${encodeURIComponent(username)}`,
+        { headers: { "x-api-key": apiKey } }
+      );
+      if (!res.ok) {
+        console.error(`Twitter followings error for @${username}: ${res.status}`);
+        return [];
+      }
+      const data = await res.json();
+      const users = data.data?.users ?? data.users ?? [];
+      return users.map((u: { userName?: string; name?: string }) => u.userName ?? u.name ?? "");
+    } catch (err) {
+      console.error(`Twitter followings failed for @${username}:`, err);
+      return [];
+    }
+  },
 };

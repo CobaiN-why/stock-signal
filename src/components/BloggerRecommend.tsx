@@ -25,12 +25,36 @@ const PRESET_QUERIES = [
   { label: "量化", query: "量化 trading" },
 ];
 
+interface ScoredUser extends RecommendedUser {
+  score?: number;
+  sharedBy?: number;
+}
+
 export default function BloggerRecommend({ onAdded }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [results, setResults] = useState<RecommendedUser[]>([]);
+  const [results, setResults] = useState<ScoredUser[]>([]);
+  const [networkResults, setNetworkResults] = useState<ScoredUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingNetwork, setLoadingNetwork] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"search" | "network">("search");
   const [addingUser, setAddingUser] = useState<string | null>(null);
+
+  const handleNetworkMine = async () => {
+    setLoadingNetwork(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/bloggers/recommend-by-network");
+      const data = await res.json();
+      if (data.error) setError(data.error);
+      else setNetworkResults(data.recommended ?? []);
+      setTab("network");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoadingNetwork(false);
+    }
+  };
 
   const handleSearch = async (query: string) => {
     setLoading(true);
@@ -93,7 +117,34 @@ export default function BloggerRecommend({ onAdded }: Props) {
 
       {expanded && (
         <div className="mt-3 p-4 bg-[var(--bg-hover)] border border-[var(--border)] rounded-xl">
+          {/* Tab toggle */}
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => setTab("search")}
+              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                tab === "search"
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                  : "border-[var(--border)] bg-[var(--bg-card)]"
+              }`}
+            >
+              关键词搜索
+            </button>
+            <button
+              onClick={() => { setTab("network"); handleNetworkMine(); }}
+              disabled={loadingNetwork}
+              className={`text-xs px-3 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+                tab === "network"
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                  : "border-[var(--border)] bg-[var(--bg-card)]"
+              }`}
+            >
+              {loadingNetwork ? "挖掘中..." : "🔗 关系网挖掘"}
+              <span className="ml-1 text-[var(--text-muted)]">(共同关注)</span>
+            </button>
+          </div>
+
           {/* Preset search buttons */}
+          {tab === "search" && (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {PRESET_QUERIES.map((q) => (
               <button
@@ -106,6 +157,7 @@ export default function BloggerRecommend({ onAdded }: Props) {
               </button>
             ))}
           </div>
+          )}
 
           {error && (
             <p className="text-xs text-red-500 mb-2">搜索失败: {error}</p>
@@ -117,9 +169,11 @@ export default function BloggerRecommend({ onAdded }: Props) {
             </p>
           )}
 
-          {!loading && results.length > 0 && (
+          {/* Results — search or network */}
+          {((tab === "search" && !loading && results.length > 0) ||
+            (tab === "network" && !loadingNetwork && networkResults.length > 0)) && (
             <div className="space-y-2 max-h-80 overflow-y-auto">
-              {results.map((user) => (
+              {(tab === "search" ? results : networkResults).map((user) => (
                 <div
                   key={user.xUsername}
                   className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-card)] text-sm"
@@ -134,6 +188,16 @@ export default function BloggerRecommend({ onAdded }: Props) {
                       </span>
                       {user.verified && (
                         <span className="text-blue-400 text-xs">✓</span>
+                      )}
+                      {user.score !== undefined && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] font-mono">
+                          {user.score}分
+                        </span>
+                      )}
+                      {user.sharedBy !== undefined && user.sharedBy > 1 && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                          {user.sharedBy}位共同关注
+                        </span>
                       )}
                     </div>
                     <p className="text-xs text-[var(--text-muted)] font-mono">

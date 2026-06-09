@@ -20,4 +20,5 @@ export interface PostSource {
   name: string;
   fetchUserPosts(username: string, since?: Date): Promise<SourcePost[]>;
   searchUsers?(query: string): Promise<RecommendedBlogger[]>;
+  fetchFollowing?(username: string): Promise<string[]>;
 }
