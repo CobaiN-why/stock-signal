@@ -4,14 +4,16 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   createChart,
   createSeriesMarkers,
-  AreaSeries,
+  CandlestickSeries,
+  HistogramSeries,
   type IChartApi,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
-  type SeriesType,
   type Time,
 } from "lightweight-charts";
 import type { Market } from "@/lib/markets";
+
+// ── Types ──
 
 interface Mention {
   id: string;
@@ -40,6 +42,7 @@ interface PricePoint {
   high: number;
   low: number;
   close: number;
+  volume?: number;
 }
 
 interface StockDetail {
@@ -59,6 +62,17 @@ interface Props {
   onMentionClick: (postId: string) => void;
 }
 
+// ── Constants ──
+
+const COLORS = {
+  up: { border: "#26a69a", fill: "rgba(38, 166, 154, 0.5)", wick: "#26a69a" },
+  down: { border: "#ef5350", fill: "rgba(239, 83, 80, 0.5)", wick: "#ef5350" },
+  volumeUp: "rgba(38, 166, 154, 0.4)",
+  volumeDown: "rgba(239, 83, 80, 0.4)",
+};
+
+// ── Component ──
+
 export default function PriceChart({
   market,
   ticker,
@@ -67,17 +81,13 @@ export default function PriceChart({
 }: Props) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [data, setData] = useState<StockDetail | null>(null);
   const [hoveredMention, setHoveredMention] = useState<Mention | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-
-  const associationLabel = (mention: Mention) => {
-    if (mention.associationType === "direct_sector") return "直接板块";
-    if (mention.associationType === "inferred_sector") return "弱关联推断";
-    return "直接标的";
-  };
+  // ── Data fetching ──
 
   useEffect(() => {
     if (!ticker) return;
@@ -87,79 +97,102 @@ export default function PriceChart({
       .catch(() => {});
   }, [ticker, market]);
 
-  const handleChartClick = useCallback(
-    (time: string) => {
-      if (!data) return;
-      const clickDate = time;
-      const mention = data.mentions.find((m) => {
-        const mDate = m.post.postedAt.slice(0, 10);
-        return mDate === clickDate;
-      });
-      if (mention) onMentionClick(mention.post.id);
-    },
-    [data, onMentionClick]
-  );
+  // ── Chart rendering ──
 
   useEffect(() => {
     if (!chartContainerRef.current || !data || data.prices.length === 0) return;
 
+    // Cleanup previous chart
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
-      seriesRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
+      markersRef.current = null;
     }
 
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 380,
+    const container = chartContainerRef.current;
+    const width = container.clientWidth;
+
+    const chart = createChart(container, {
+      width,
+      height: 440,
       layout: {
         background: { color: "transparent" },
-        textColor: "#8a8a8a",
+        textColor: "#888888",
         fontFamily: "var(--font-geist-mono), monospace",
-        fontSize: 11,
+        fontSize: 10,
       },
       grid: {
-        vertLines: { visible: false },
-        horzLines: { color: "#f0ead6", style: 1 },
+        vertLines: { color: "rgba(128,128,128,0.08)" },
+        horzLines: { color: "rgba(128,128,128,0.08)" },
       },
       rightPriceScale: {
         borderVisible: false,
-        scaleMargins: { top: 0.1, bottom: 0.05 },
+        scaleMargins: { top: 0.05, bottom: 0.25 },
+        autoScale: true,
       },
       timeScale: {
         borderVisible: false,
         fixLeftEdge: true,
         fixRightEdge: true,
+        timeVisible: true,
+        secondsVisible: false,
       },
       crosshair: {
-        vertLine: { color: "#c8c0b0", width: 1, style: 2 },
-        horzLine: { color: "#c8c0b0", width: 1, style: 2 },
+        vertLine: { color: "#888888", width: 1, style: 2, labelVisible: false },
+        horzLine: { color: "#888888", width: 1, style: 2, labelVisible: false },
+        mode: 0,
       },
     });
 
     chartRef.current = chart;
 
-    // Area series: green line + gradient fill (like 图2)
-    const areaSeries = chart.addSeries(AreaSeries, {
-      lineColor: "#2d6a4f",
-      lineWidth: 2,
-      topColor: "rgba(45, 106, 79, 0.25)",
-      bottomColor: "rgba(45, 106, 79, 0.02)",
-      crosshairMarkerVisible: true,
-      crosshairMarkerRadius: 4,
-      crosshairMarkerBorderColor: "#2d6a4f",
-      crosshairMarkerBackgroundColor: "#fff",
+    // ── Candlestick series (K-line) ──
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: COLORS.up.fill,
+      downColor: COLORS.down.fill,
+      borderUpColor: COLORS.up.border,
+      borderDownColor: COLORS.down.border,
+      wickUpColor: COLORS.up.wick,
+      wickDownColor: COLORS.down.wick,
+    });
+    candleSeriesRef.current = candleSeries;
+
+    const candleData = data.prices.map((p) => ({
+      time: p.date.slice(0, 10) as Time,
+      open: p.open,
+      high: p.high,
+      low: p.low,
+      close: p.close,
+    }));
+    candleSeries.setData(candleData);
+
+    // ── Volume histogram (pane below K-line) ──
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceScaleId: "volume",
+      priceFormat: { type: "volume" },
+    });
+    volumeSeriesRef.current = volumeSeries;
+
+    // Set up volume scale (bottom pane)
+    chart.priceScale("volume").applyOptions({
+      scaleMargins: { top: 0.8, bottom: 0 },
+      borderVisible: false,
     });
 
-    seriesRef.current = areaSeries;
+    const volumeData = data.prices.map((p, i) => {
+      const prevClose = i > 0 ? data.prices[i - 1].close : p.open;
+      const isUp = p.close >= prevClose;
+      return {
+        time: p.date.slice(0, 10) as Time,
+        value: p.volume || 0,
+        color: isUp ? COLORS.volumeUp : COLORS.volumeDown,
+      };
+    });
+    volumeSeries.setData(volumeData);
 
-    const lineData = data.prices.map((p) => ({
-      time: p.date.slice(0, 10) as Time,
-      value: p.close,
-    }));
-    areaSeries.setData(lineData);
-
-    // Per-blogger colored markers — stacked positions for same-day mentions
+    // ── Mention markers (blogger sentiment arrows) ──
     const mentionsByDate = new Map<string, Mention[]>();
     for (const m of data.mentions) {
       if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
@@ -200,24 +233,17 @@ export default function PriceChart({
           position: positions[Math.min(i, 2)],
           color: m.post.blogger.color,
           shape,
-          text:
-            m.associationType === "inferred_sector"
-              ? "弱"
-              : i === 0 && mentions.length > 1
-                ? `${mentions.length}`
-                : "",
+          text: uniqueBloggers.length > 1 && i === 0
+            ? `${uniqueBloggers.length}`
+            : "",
           size: 2,
         });
       });
     }
-
     markers.sort((a, b) => (a.time < b.time ? -1 : 1));
+    markersRef.current = createSeriesMarkers(candleSeries, markers);
 
-    if (markersRef.current) {
-      markersRef.current.setMarkers([]);
-    }
-    markersRef.current = createSeriesMarkers(areaSeries, markers);
-
+    // ── Crosshair: tooltip hover ──
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || !param.point) {
         setHoveredMention(null);
@@ -226,26 +252,28 @@ export default function PriceChart({
       const dateStr = param.time as string;
       const mentions = mentionsByDate.get(dateStr);
       if (mentions && mentions.length > 0) {
-        const width = chartContainerRef.current?.clientWidth ?? 400;
+        const w = container.clientWidth;
         setHoveredMention(mentions[0]);
-        setTooltipPos({
-          x: Math.min(param.point.x, width - 300),
-          y: Math.max(0, param.point.y - 80),
-        });
+        setTooltipPos({ x: Math.min(param.point.x, w - 300), y: Math.max(0, param.point.y - 100) });
       } else {
         setHoveredMention(null);
       }
     });
 
+    // ── Click handler ──
     chart.subscribeClick((param) => {
-      if (param.time) handleChartClick(param.time as string);
+      if (!param.time || !data) return;
+      const clickDate = param.time as string;
+      const mention = data.mentions.find(
+        (m) => m.post.postedAt.slice(0, 10) === clickDate
+      );
+      if (mention) onMentionClick(mention.post.id);
     });
 
+    // ── Resize handler ──
     const handleResize = () => {
       if (chartContainerRef.current) {
-        chart.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
       }
     };
     window.addEventListener("resize", handleResize);
@@ -256,14 +284,24 @@ export default function PriceChart({
       window.removeEventListener("resize", handleResize);
       chart.remove();
       chartRef.current = null;
-      seriesRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
       markersRef.current = null;
     };
-  }, [data, selectedBlogger, handleChartClick]);
+  }, [data, selectedBlogger]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Association label helper ──
+  const associationLabel = (mention: Mention) => {
+    if (mention.associationType === "direct_sector") return "直接板块";
+    if (mention.associationType === "inferred_sector") return "弱关联推断";
+    return "直接标的";
+  };
+
+  // ── Empty / loading states ──
 
   if (!ticker) {
     return (
-      <div className="flex items-center justify-center h-[380px] text-[var(--text-secondary)] text-sm">
+      <div className="flex items-center justify-center h-[440px] text-[var(--text-secondary)] text-sm">
         选择左侧股票查看价格曲线
       </div>
     );
@@ -271,51 +309,67 @@ export default function PriceChart({
 
   if (!data) {
     return (
-      <div className="flex items-center justify-center h-[380px] text-[var(--text-secondary)] text-sm">
+      <div className="flex items-center justify-center h-[440px] text-[var(--text-secondary)] text-sm">
         加载中...
       </div>
     );
   }
 
-  // Group mention counts by blogger
+  // ── Blogger mention counts ──
   const bloggerCounts = new Map<
     string,
-    { color: string; count: number; weakCount: number }
+    { color: string; count: number }
   >();
   for (const m of data.mentions) {
     const key = m.post.blogger.xUsername;
     const existing = bloggerCounts.get(key);
-    if (existing) {
-      existing.count++;
-      if (m.associationType === "inferred_sector") existing.weakCount++;
-    } else {
-      bloggerCounts.set(key, {
-        color: m.post.blogger.color,
-        count: 1,
-        weakCount: m.associationType === "inferred_sector" ? 1 : 0,
-      });
-    }
+    if (existing) existing.count++;
+    else bloggerCounts.set(key, { color: m.post.blogger.color, count: 1 });
   }
+
+  const priceChange =
+    data.prices.length >= 2
+      ? data.prices[data.prices.length - 1].close -
+        data.prices[data.prices.length - 2].close
+      : 0;
+  const priceChangePct =
+    data.prices.length >= 2 && data.prices[data.prices.length - 2].close > 0
+      ? (priceChange / data.prices[data.prices.length - 2].close) * 100
+      : 0;
 
   return (
     <div>
+      {/* Header bar */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
-          <span className="font-serif-title text-xl">
+        <div className="flex items-baseline gap-2">
+          <span className="font-serif-title text-lg">
             {data.market === "US" ? "$" : ""}{data.ticker}
           </span>
           {data.companyName && (
-            <span className="ml-2 text-sm text-[var(--text-secondary)]">
+            <span className="text-sm text-[var(--text-secondary)]">
               {data.companyName}
             </span>
           )}
           {data.latestPrice && (
-            <span className="ml-3 font-mono text-lg font-bold">
-              {data.currency === "USD" ? "$" : ""}{Number(data.latestPrice).toFixed(2)}
-            </span>
+            <>
+              <span className="font-mono text-lg font-bold">
+                {Number(data.latestPrice).toFixed(data.currency === "USD" ? 2 : 3)}
+              </span>
+              <span
+                className={`text-xs font-mono ${
+                  priceChange >= 0 ? "text-emerald-600" : "text-red-500"
+                }`}
+              >
+                {priceChange >= 0 ? "+" : ""}
+                {priceChange.toFixed(3)} ({priceChangePct >= 0 ? "+" : ""}
+                {priceChangePct.toFixed(2)}%)
+              </span>
+            </>
           )}
         </div>
-        <div className="flex gap-2 flex-wrap">
+
+        <div className="flex items-center gap-2">
+          {/* Blogger badges */}
           {Array.from(bloggerCounts.entries()).map(([username, info]) => (
             <span
               key={username}
@@ -325,33 +379,26 @@ export default function PriceChart({
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: info.color }}
               />
-              @{username} x{info.count}
-              {info.weakCount > 0 && (
-                <span className="text-[var(--text-secondary)]">
-                  弱{info.weakCount}
-                </span>
-              )}
+              @{username} ×{info.count}
             </span>
           ))}
         </div>
       </div>
 
+      {/* Chart */}
       <div className="relative">
         <div ref={chartContainerRef} />
+
+        {/* Mention tooltip on hover */}
         {hoveredMention && (
           <div
             className="absolute z-10 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-md p-3 max-w-[280px] text-xs pointer-events-none"
-            style={{
-              left: tooltipPos.x,
-              top: tooltipPos.y,
-            }}
+            style={{ left: tooltipPos.x, top: tooltipPos.y }}
           >
             <div className="flex items-center gap-1 mb-1">
               <span
                 className="w-2 h-2 rounded-full"
-                style={{
-                  backgroundColor: hoveredMention.post.blogger.color,
-                }}
+                style={{ backgroundColor: hoveredMention.post.blogger.color }}
               />
               <span className="font-mono font-bold">
                 @{hoveredMention.post.blogger.xUsername}
@@ -366,13 +413,8 @@ export default function PriceChart({
                   {hoveredMention.sentiment === "bullish" ? "看多" : "看空"}
                 </span>
               )}
-              <span className="text-[var(--text-secondary)]">
-                {associationLabel(hoveredMention)}
-              </span>
               <span className="text-[var(--text-secondary)] ml-auto">
-                {new Date(hoveredMention.post.postedAt).toLocaleDateString(
-                  "zh-CN"
-                )}
+                {new Date(hoveredMention.post.postedAt).toLocaleDateString("zh-CN")}
               </span>
             </div>
             <p className="text-[var(--text-primary)] line-clamp-3">
@@ -381,8 +423,6 @@ export default function PriceChart({
             {hoveredMention.evidence && (
               <p className="mt-1 text-[var(--text-secondary)]">
                 关联依据：{hoveredMention.evidence}
-                {hoveredMention.confidence !== undefined &&
-                  ` / 置信度 ${Math.round(hoveredMention.confidence * 100)}%`}
               </p>
             )}
           </div>
