@@ -38,7 +38,7 @@ export default function SignalEventList({ market }: Props) {
   }, [market]);
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm">
+    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-serif-title text-sm text-[var(--text-secondary)]">
           Signal Events
@@ -50,7 +50,7 @@ export default function SignalEventList({ market }: Props) {
         {events.map((event) => (
           <div
             key={event.id}
-            className="border border-[var(--border-soft)] rounded-lg px-3 py-2"
+            className="border border-[var(--border)] rounded-lg px-3 py-2"
           >
             <div className="flex items-center gap-2 mb-1">
               <span
@@ -59,7 +59,7 @@ export default function SignalEventList({ market }: Props) {
                     ? "bg-red-50 text-red-700"
                     : event.severity === "warning"
                       ? "bg-amber-50 text-amber-700"
-                      : "bg-[var(--border-soft)] text-[var(--text-secondary)]"
+                      : "bg-[var(--border)] text-[var(--text-secondary)]"
                 }`}
               >
                 {eventLabels[event.eventType] ?? event.eventType}
@@ -82,7 +82,7 @@ export default function SignalEventList({ market }: Props) {
                 href={event.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-[var(--accent-green)] hover:underline mt-1 inline-block"
+                className="text-xs text-[var(--accent)] hover:underline mt-1 inline-block"
               >
                 查看来源
               </a>

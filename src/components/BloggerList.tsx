@@ -42,8 +42,8 @@ export default function BloggerList({ market, selectedBlogger, onSelect }: Props
             }
             className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors ${
               selectedBlogger === b.xUsername
-                ? "bg-[var(--border-soft)]"
-                : "hover:bg-[var(--border-soft)]/50"
+                ? "bg-[var(--border)]"
+                : "hover:bg-[var(--border)]/50"
             }`}
           >
             <span

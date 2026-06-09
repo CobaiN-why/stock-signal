@@ -84,12 +84,12 @@ export default function BloggerLibrary() {
           placeholder="搜索博主名称或用户名..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 px-3 py-2 rounded-lg border border-[var(--border-soft)] bg-[var(--card-bg)] text-sm placeholder:text-[var(--text-secondary)] focus:outline-none focus:border-[var(--accent-green)]/50"
+          className="flex-1 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm placeholder:text-[var(--text-secondary)] focus:outline-none focus:border-[var(--accent)]/50"
         />
         <select
           value={sectorFilter}
           onChange={(e) => setSectorFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-[var(--border-soft)] bg-[var(--card-bg)] text-sm text-[var(--text-primary)]"
+          className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm text-[var(--text-primary)]"
         >
           <option value="">全部板块</option>
           {allSectors.map((s) => (
@@ -126,9 +126,9 @@ export default function BloggerLibrary() {
                   : blogger.xUsername
               )
             }
-            className={`w-full text-left p-4 rounded-xl border transition-all duration-200 bg-[var(--card-bg)] border-[var(--border-soft)] hover:border-[var(--accent-green)]/30 hover:shadow-sm ${
+            className={`w-full text-left p-4 rounded-xl border transition-all duration-200 bg-[var(--bg-card)] border-[var(--border)] hover:border-[var(--accent)]/30 hover:shadow-sm ${
               selectedBlogger === blogger.xUsername
-                ? "border-[var(--accent-green)]/50 shadow-md"
+                ? "border-[var(--accent)]/50 shadow-md"
                 : ""
             }`}
           >
@@ -167,7 +167,7 @@ export default function BloggerLibrary() {
                     {blogger.topSectors.map((s) => (
                       <span
                         key={s.slug}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-warm-light)] text-xs"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-hover)] text-xs"
                       >
                         <span>{s.name}</span>
                         <span className="font-mono text-[var(--text-secondary)]">

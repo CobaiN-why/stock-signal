@@ -53,7 +53,7 @@ export default function Header({ market }: Props) {
         {cards.map((card) => (
           <div
             key={card.label}
-            className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg px-4 py-3 shadow-sm"
+            className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-4 py-3 shadow-sm"
           >
             <div className="text-2xl font-mono font-bold">{card.value}</div>
             <div className="text-xs text-[var(--text-secondary)] mt-1">

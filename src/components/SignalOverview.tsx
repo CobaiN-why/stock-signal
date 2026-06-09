@@ -42,18 +42,13 @@ interface Stats {
   lastUpdated: string | null;
 }
 
-interface Props {
-  onSelectTicker: (ticker: string | null) => void;
-}
-
-export default function SignalOverview({ onSelectTicker }: Props) {
+export default function SignalOverview() {
   const { market } = useMarket();
   const [sectors, setSectors] = useState<SectorSummary[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedSector, setSelectedSector] = useState<SectorSummary | null>(
-    null
-  );
+  const [selectedSector, setSelectedSector] = useState<SectorSummary | null>(null);
+  const [chartForSector, setChartForSector] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -163,8 +158,12 @@ export default function SignalOverview({ onSelectTicker }: Props) {
           }
           highlight
           onClick={() => {
-            if (strongest?.primaryEtf) {
-              onSelectTicker(strongest.primaryEtf.ticker);
+            if (strongest) {
+              setSelectedSector(strongest);
+              // Pass initialChartTicker via a small delay to ensure SectorDetail mounts
+              setTimeout(() => {
+                setChartForSector(strongest.primaryEtf?.ticker ?? null);
+              }, 50);
             }
           }}
         />
@@ -182,9 +181,9 @@ export default function SignalOverview({ onSelectTicker }: Props) {
           <button
             key={sector.id}
             onClick={() => setSelectedSector(sector)}
-            className={`w-full text-left p-4 rounded-xl border transition-all duration-200 bg-[var(--card-bg)] border-[var(--border-soft)] hover:border-[var(--accent-green)]/30 hover:shadow-sm ${
+            className={`w-full text-left p-4 rounded-xl border transition-all duration-200 bg-[var(--bg-card)] border-[var(--border)] hover:border-[var(--accent)]/30 hover:shadow-sm ${
               selectedSector?.id === sector.id
-                ? "border-[var(--accent-green)]/50 shadow-md"
+                ? "border-[var(--accent)]/50 shadow-md"
                 : ""
             }`}
           >
@@ -216,7 +215,7 @@ export default function SignalOverview({ onSelectTicker }: Props) {
                 {/* Bull/bear ratio bar */}
                 {sector.bullBearRatio !== null && (
                   <div className="mt-1.5 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 rounded-full bg-[var(--border-soft)] overflow-hidden">
+                    <div className="flex-1 h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
                       <div
                         className="h-full rounded-full bg-red-400 transition-all"
                         style={{ width: `${sector.bullBearRatio}%` }}
@@ -270,8 +269,8 @@ export default function SignalOverview({ onSelectTicker }: Props) {
         <div className="mt-6">
           <SectorDetail
             slug={selectedSector.slug}
-            onClose={() => setSelectedSector(null)}
-            onSelectTicker={onSelectTicker}
+            initialChartTicker={chartForSector ?? undefined}
+            onClose={() => { setSelectedSector(null); setChartForSector(null); }}
           />
         </div>
       )}
@@ -281,7 +280,7 @@ export default function SignalOverview({ onSelectTicker }: Props) {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-3 text-center">
+    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 text-center">
       <div className="text-xl font-mono font-bold text-[var(--text-primary)]">
         {value}
       </div>
@@ -310,7 +309,7 @@ function SummaryCard({
   return (
     <button
       onClick={onClick}
-      className={`text-left p-3 rounded-xl border transition-all duration-200 bg-[var(--card-bg)] border-[var(--border-soft)] hover:border-[var(--accent-green)]/30 hover:shadow-sm ${
+      className={`text-left p-3 rounded-xl border transition-all duration-200 bg-[var(--bg-card)] border-[var(--border)] hover:border-[var(--accent)]/30 hover:shadow-sm ${
         highlight ? "ring-1 ring-amber-200" : ""
       }`}
     >

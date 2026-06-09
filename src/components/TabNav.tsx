@@ -13,7 +13,7 @@ interface Props {
 
 export default function TabNav({ active, onChange }: Props) {
   return (
-    <nav className="flex border-b border-[var(--border-soft)] mb-6">
+    <nav className="flex border-b border-[var(--border)] mb-6">
       {tabs.map((tab) => (
         <button
           key={tab.key}
@@ -26,7 +26,7 @@ export default function TabNav({ active, onChange }: Props) {
         >
           {tab.label}
           {active === tab.key && (
-            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[var(--accent-green)] rounded-full" />
+            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[var(--accent)] rounded-full" />
           )}
         </button>
       ))}

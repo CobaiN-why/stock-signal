@@ -134,10 +134,10 @@ export default function PostTimeline({
             ref={(el) => {
               if (el) postRefs.current.set(post.id, el);
             }}
-            className={`border border-[var(--border-soft)] rounded-lg p-3 transition-all ${
+            className={`border border-[var(--border)] rounded-lg p-3 transition-all ${
               highlightPostId === post.id
-                ? "ring-2 ring-[var(--accent-green)] bg-[var(--accent-green)]/5"
-                : "bg-[var(--card-bg)]"
+                ? "ring-2 ring-[var(--accent)] bg-[var(--accent)]/5"
+                : "bg-[var(--bg-card)]"
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -160,7 +160,7 @@ export default function PostTimeline({
                 {stockMappings(post).map((stock) => (
                   <span
                     key={`${stock.market}:${stock.ticker}`}
-                    className="text-xs bg-[var(--border-soft)] rounded px-1.5 py-0.5 font-mono"
+                    className="text-xs bg-[var(--border)] rounded px-1.5 py-0.5 font-mono"
                     title={stock.assetType === "ETF" ? "直接 ETF" : "直接个股"}
                   >
                     {stock.market === "US" ? "$" : ""}{stock.ticker}
@@ -171,7 +171,7 @@ export default function PostTimeline({
                   <span
                     key={`${sector.market}:${sector.slug}`}
                     title={`${sector.evidence} / 置信度 ${Math.round(sector.confidence * 100)}%`}
-                    className="text-xs bg-[var(--accent-green)]/10 text-[var(--accent-green)] rounded px-1.5 py-0.5"
+                    className="text-xs bg-[var(--accent)]/10 text-[var(--accent)] rounded px-1.5 py-0.5"
                   >
                     {sector.confidence >= 0.7 ? "板块" : "弱关联"}:{sector.name}
                   </span>
@@ -194,7 +194,7 @@ export default function PostTimeline({
               href={post.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block mt-2 text-xs text-[var(--accent-green)] hover:underline"
+              className="inline-block mt-2 text-xs text-[var(--accent)] hover:underline"
             >
               查看原帖 →
             </a>

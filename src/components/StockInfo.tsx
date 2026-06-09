@@ -178,7 +178,7 @@ function SentimentModule({
   const bullishPct = total > 0 ? (bullishCount / total) * 100 : 0;
 
   return (
-    <div className="border-t border-[var(--border-soft)] pt-4 mb-4">
+    <div className="border-t border-[var(--border)] pt-4 mb-4">
       <div className="flex items-start gap-6">
         {/* Left: Cumulative return hero */}
         {hasCumulativeReturn && (
@@ -315,7 +315,7 @@ export default function StockInfo({ market, ticker, onMentionClick }: Props) {
 
   if (!ticker) {
     return (
-      <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm text-sm text-[var(--text-secondary)] text-center py-8">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 shadow-sm text-sm text-[var(--text-secondary)] text-center py-8">
         选择股票后显示基本信息与分析
       </div>
     );
@@ -323,7 +323,7 @@ export default function StockInfo({ market, ticker, onMentionClick }: Props) {
 
   if (!data || !ticker || data.market !== market || data.ticker !== ticker) {
     return (
-      <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm text-sm text-[var(--text-secondary)] text-center py-8">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 shadow-sm text-sm text-[var(--text-secondary)] text-center py-8">
         加载中...
       </div>
     );
@@ -347,7 +347,7 @@ export default function StockInfo({ market, ticker, onMentionClick }: Props) {
   ];
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm">
+    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 shadow-sm">
       {/* Company header */}
       <div className="mb-4">
         <h3 className="font-serif-title text-lg">
@@ -389,9 +389,9 @@ export default function StockInfo({ market, ticker, onMentionClick }: Props) {
 
       {/* Sector ETF recommendations */}
       {data.sector && (
-        <div className="border-t border-[var(--border-soft)] pt-4 mb-4">
+        <div className="border-t border-[var(--border)] pt-4 mb-4">
           <div className="flex items-baseline gap-2 mb-2">
-            <h4 className="text-sm font-bold text-[var(--accent-green)]">
+            <h4 className="text-sm font-bold text-[var(--accent)]">
               关联板块：{data.sector.name}
             </h4>
             <span className="text-xs text-[var(--text-secondary)]">
@@ -407,7 +407,7 @@ export default function StockInfo({ market, ticker, onMentionClick }: Props) {
             {data.sector.etfs.slice(0, 3).map((etf) => (
               <div
                 key={etf.ticker}
-                className="border border-[var(--border-soft)] rounded-lg px-3 py-2"
+                className="border border-[var(--border)] rounded-lg px-3 py-2"
               >
                 <div className="font-mono text-sm font-bold">
                   {etf.market === "US" ? "$" : ""}{etf.ticker}
@@ -423,8 +423,8 @@ export default function StockInfo({ market, ticker, onMentionClick }: Props) {
 
       {/* HV Analysis — always visible */}
       {data.analysis && (
-        <div className="border-t border-[var(--border-soft)] pt-4">
-          <h4 className="text-sm font-bold text-[var(--accent-green)] mb-3">
+        <div className="border-t border-[var(--border)] pt-4">
+          <h4 className="text-sm font-bold text-[var(--accent)] mb-3">
             纵横分析报告
           </h4>
           <div className="text-sm leading-7 text-[var(--text-primary)] whitespace-pre-wrap">

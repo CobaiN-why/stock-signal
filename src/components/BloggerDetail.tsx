@@ -130,7 +130,7 @@ export default function BloggerDetail({ username, onClose }: Props) {
 
   if (loading) {
     return (
-      <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-6 text-center text-[var(--text-secondary)]">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 text-center text-[var(--text-secondary)]">
         加载中...
       </div>
     );
@@ -138,14 +138,14 @@ export default function BloggerDetail({ username, onClose }: Props) {
 
   if (!data) {
     return (
-      <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-6 text-center text-[var(--text-secondary)]">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 text-center text-[var(--text-secondary)]">
         博主不存在
       </div>
     );
   }
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--accent-green)]/30 rounded-xl p-6 shadow-md">
+    <div className="bg-[var(--bg-card)] border border-[var(--accent)]/30 rounded-xl p-6 shadow-md">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -228,7 +228,7 @@ export default function BloggerDetail({ username, onClose }: Props) {
                 <span className="w-20 text-xs text-[var(--text-primary)] truncate">
                   {s.name}
                 </span>
-                <div className="flex-1 h-2 rounded-full bg-[var(--border-soft)] overflow-hidden">
+                <div className="flex-1 h-2 rounded-full bg-[var(--border)] overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       s.score >= 70
@@ -263,7 +263,7 @@ export default function BloggerDetail({ username, onClose }: Props) {
           <select
             value={sectorFilter}
             onChange={(e) => handleSectorFilter(e.target.value)}
-            className="text-xs px-2 py-1 rounded border border-[var(--border-soft)] bg-[var(--bg-warm-light)]"
+            className="text-xs px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg-hover)]"
           >
             <option value="">全部板块</option>
             {data.sectorCloud.map((s) => (
@@ -283,7 +283,7 @@ export default function BloggerDetail({ username, onClose }: Props) {
           {opinions.map((op) => (
             <div
               key={op.id}
-              className="p-3 rounded-lg bg-[var(--bg-warm-light)] text-sm"
+              className="p-3 rounded-lg bg-[var(--bg-hover)] text-sm"
             >
               <div className="flex items-center gap-2 mb-1">
                 <span
@@ -301,7 +301,7 @@ export default function BloggerDetail({ username, onClose }: Props) {
                       ? "看空"
                       : "未知"}
                 </span>
-                <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--border-soft)]/50">
+                <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--border)]/50">
                   {op.sector.name}
                 </span>
                 {op.sector.primaryEtf && (
@@ -332,7 +332,7 @@ export default function BloggerDetail({ username, onClose }: Props) {
                   href={op.post.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[var(--accent-green)] hover:underline"
+                  className="text-[var(--accent)] hover:underline"
                 >
                   查看原帖 →
                 </a>
@@ -344,7 +344,7 @@ export default function BloggerDetail({ username, onClose }: Props) {
         {opinions.length < opinionTotal && (
           <button
             onClick={loadMore}
-            className="mt-3 w-full py-2 text-sm text-[var(--accent-green)] hover:bg-[var(--bg-warm-light)] rounded-lg transition-colors"
+            className="mt-3 w-full py-2 text-sm text-[var(--accent)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
           >
             加载更多...
           </button>
@@ -356,7 +356,7 @@ export default function BloggerDetail({ username, onClose }: Props) {
 
 function StatBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-[var(--bg-warm-light)] rounded-lg p-3 text-center">
+    <div className="bg-[var(--bg-hover)] rounded-lg p-3 text-center">
       <div className="text-lg font-mono font-bold text-[var(--text-primary)]">
         {value}
       </div>

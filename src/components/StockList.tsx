@@ -64,7 +64,7 @@ export default function StockList({ market, selectedTicker, onSelect }: Props) {
           placeholder={market === "CN" ? "搜索 510300 / 芯片ETF ..." : "搜索 NVDA / SPY ..."}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border-soft)] bg-[var(--bg-warm-light)] placeholder:text-[var(--text-secondary)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--accent-green)]"
+          className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-hover)] placeholder:text-[var(--text-secondary)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
         />
       </div>
 
@@ -77,7 +77,7 @@ export default function StockList({ market, selectedTicker, onSelect }: Props) {
             className={`px-3 py-1 rounded-full text-xs transition-colors ${
               filter === f.key
                 ? "bg-[var(--text-primary)] text-white"
-                : "bg-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--border-soft)]/80"
+                : "bg-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--border)]/80"
             }`}
           >
             {f.label}
@@ -93,8 +93,8 @@ export default function StockList({ market, selectedTicker, onSelect }: Props) {
             onClick={() => onSelect(s.ticker)}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors ${
               selectedTicker === s.ticker
-                ? "bg-[var(--border-soft)]"
-                : "hover:bg-[var(--border-soft)]/50"
+                ? "bg-[var(--border)]"
+                : "hover:bg-[var(--border)]/50"
             }`}
           >
             <div className="min-w-0">
@@ -113,7 +113,7 @@ export default function StockList({ market, selectedTicker, onSelect }: Props) {
                 </div>
               )}
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs font-bold text-[var(--accent-green)]">
+                <span className="text-xs font-bold text-[var(--accent)]">
                   {s.mentionCount ?? s._count.postStocks} 次提及
                 </span>
                 {s.assetType === "ETF" && s.sectorMentionCount > 0 && (

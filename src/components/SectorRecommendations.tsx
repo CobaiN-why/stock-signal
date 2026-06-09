@@ -64,7 +64,7 @@ export default function SectorRecommendations({
   const ranked = [...sectors].sort((a, b) => b.mentionCount - a.mentionCount);
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg p-4 shadow-sm">
+    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-serif-title text-sm text-[var(--text-secondary)]">
           Sectors & ETF Ideas
@@ -76,7 +76,7 @@ export default function SectorRecommendations({
         {ranked.map((sector) => (
           <div
             key={sector.id}
-            className="border border-[var(--border-soft)] rounded-lg p-3"
+            className="border border-[var(--border)] rounded-lg p-3"
           >
             <div className="flex items-start justify-between gap-2 mb-1">
               <div>
@@ -106,8 +106,8 @@ export default function SectorRecommendations({
                   onClick={() => onSelectTicker(etf.ticker)}
                   className={`w-full flex items-center justify-between gap-2 text-xs rounded px-2 py-1 transition-colors ${
                     selectedTicker === etf.ticker
-                      ? "bg-[var(--border-soft)]"
-                      : "hover:bg-[var(--border-soft)]/50"
+                      ? "bg-[var(--border)]"
+                      : "hover:bg-[var(--border)]/50"
                   }`}
                 >
                   <span className="font-mono font-bold">
@@ -125,14 +125,14 @@ export default function SectorRecommendations({
               )}
             </div>
             {sector.recentOpinions.length > 0 && (
-              <div className="mt-3 pt-2 border-t border-[var(--border-soft)] space-y-1">
+              <div className="mt-3 pt-2 border-t border-[var(--border)] space-y-1">
                 {sector.recentOpinions.slice(0, 2).map((opinion) => (
                   <a
                     key={opinion.id}
                     href={opinion.post.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-xs hover:text-[var(--accent-green)]"
+                    className="block text-xs hover:text-[var(--accent)]"
                     title={opinion.post.content}
                   >
                     <span

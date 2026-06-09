@@ -319,7 +319,7 @@ export default function PriceChart({
           {Array.from(bloggerCounts.entries()).map(([username, info]) => (
             <span
               key={username}
-              className="inline-flex items-center gap-1 text-xs bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-full px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-full px-2 py-0.5"
             >
               <span
                 className="w-2 h-2 rounded-full"
@@ -340,7 +340,7 @@ export default function PriceChart({
         <div ref={chartContainerRef} />
         {hoveredMention && (
           <div
-            className="absolute z-10 bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-lg shadow-md p-3 max-w-[280px] text-xs pointer-events-none"
+            className="absolute z-10 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-md p-3 max-w-[280px] text-xs pointer-events-none"
             style={{
               left: tooltipPos.x,
               top: tooltipPos.y,

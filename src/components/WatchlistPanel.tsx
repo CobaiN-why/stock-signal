@@ -106,7 +106,7 @@ export default function WatchlistPanel() {
       {/* Followed sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Followed sectors */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-4">
+        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-serif-title text-sm">关注的板块</h3>
             <button
@@ -118,7 +118,7 @@ export default function WatchlistPanel() {
                     .map((s) => ({ id: s.slug, name: s.name, slug: s.slug }))
                 );
               }}
-              className="text-xs text-[var(--accent-green)] hover:underline"
+              className="text-xs text-[var(--accent)] hover:underline"
             >
               + 添加
             </button>
@@ -132,7 +132,7 @@ export default function WatchlistPanel() {
               {followedSectorItems.map((s) => (
                 <div
                   key={s.slug}
-                  className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-warm-light)]"
+                  className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-hover)]"
                 >
                   <div className="flex items-center gap-2">
                     <SentimentLight
@@ -162,7 +162,7 @@ export default function WatchlistPanel() {
         </div>
 
         {/* Followed bloggers */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-4">
+        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-serif-title text-sm">关注的博主</h3>
             <button
@@ -181,7 +181,7 @@ export default function WatchlistPanel() {
                     }))
                 );
               }}
-              className="text-xs text-[var(--accent-green)] hover:underline"
+              className="text-xs text-[var(--accent)] hover:underline"
             >
               + 添加
             </button>
@@ -195,7 +195,7 @@ export default function WatchlistPanel() {
               {followedBloggerItems.map((b) => (
                 <div
                   key={b.xUsername}
-                  className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-warm-light)]"
+                  className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-hover)]"
                 >
                   <div className="flex items-center gap-2">
                     <span
@@ -227,7 +227,7 @@ export default function WatchlistPanel() {
 
       {/* Add modal */}
       {addMode && (
-        <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-4">
+        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-medium">
               {addMode === "sector" ? "添加板块关注" : "添加博主关注"}
@@ -257,7 +257,7 @@ export default function WatchlistPanel() {
                   loadWatchlist();
                   setAddMode(null);
                 }}
-                className="w-full text-left flex items-center gap-2 p-2 rounded hover:bg-[var(--bg-warm-light)] text-sm transition-colors"
+                className="w-full text-left flex items-center gap-2 p-2 rounded hover:bg-[var(--bg-hover)] text-sm transition-colors"
               >
                 {item.color && (
                   <span
@@ -326,7 +326,7 @@ export default function WatchlistPanel() {
             {recentActivity.map((a, i) => (
               <div
                 key={i}
-                className="p-2 rounded-lg bg-[var(--card-bg)] border border-[var(--border-soft)] text-sm"
+                className="p-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm"
               >
                 <span className="text-[var(--text-secondary)]">
                   {a.time}
@@ -339,7 +339,7 @@ export default function WatchlistPanel() {
       )}
 
       {/* Notification settings placeholder */}
-      <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-4">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4">
         <h3 className="font-serif-title text-sm mb-2">通知设置</h3>
         <div className="flex flex-col gap-2 text-sm">
           <label className="flex items-center gap-2 text-[var(--text-secondary)] cursor-not-allowed">

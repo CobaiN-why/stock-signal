@@ -12,7 +12,7 @@ export default function MarketSwitcher() {
   const { market, setMarket } = useMarket();
 
   return (
-    <div className="inline-flex rounded-lg border border-[var(--border-soft)] bg-[var(--card-bg)] p-1 shadow-sm">
+    <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-1 shadow-sm">
       {markets.map((item) => (
         <button
           key={item.key}
@@ -20,7 +20,7 @@ export default function MarketSwitcher() {
           className={`px-4 py-2 text-sm rounded-md transition-all duration-200 font-medium ${
             market === item.key
               ? "bg-[var(--text-primary)] text-white shadow-sm"
-              : "text-[var(--text-secondary)] hover:bg-[var(--border-soft)]/60"
+              : "text-[var(--text-secondary)] hover:bg-[var(--border)]/60"
           }`}
         >
           {item.label}

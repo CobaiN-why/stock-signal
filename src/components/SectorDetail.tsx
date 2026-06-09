@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMarket } from "@/lib/market-context";
 import SentimentLight from "./SentimentLight";
 import CredibilityBadge from "./CredibilityBadge";
 import AvatarWall from "./AvatarWall";
 import MiniSparkline from "./MiniSparkline";
+import PriceChart from "./PriceChart";
+import PostTimeline from "./PostTimeline";
 
 interface SectorDetailData {
   id: string;
@@ -63,14 +65,31 @@ interface SectorDetailData {
 
 interface Props {
   slug: string;
+  initialChartTicker?: string;
   onClose: () => void;
-  onSelectTicker: (ticker: string | null) => void;
 }
 
-export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
+export default function SectorDetail({ slug, initialChartTicker, onClose }: Props) {
   const { market } = useMarket();
   const [data, setData] = useState<SectorDetailData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chartTicker, setChartTicker] = useState<string | null>(initialChartTicker ?? null);
+  const [chartBlogger, setChartBlogger] = useState<string | null>(null);
+  const [highlightPostId, setHighlightPostId] = useState<string | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  const handleMentionClick = (postId: string) => {
+    setHighlightPostId(postId);
+    setTimeout(() => setHighlightPostId(null), 3000);
+  };
+
+  const handleSelectTicker = (ticker: string) => {
+    setChartTicker(ticker);
+    // Auto-scroll to chart after render
+    setTimeout(() => {
+      chartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -83,7 +102,7 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
 
   if (loading) {
     return (
-      <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-6 text-center text-[var(--text-secondary)]">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 text-center text-[var(--text-secondary)]">
         加载中...
       </div>
     );
@@ -91,14 +110,14 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
 
   if (!data) {
     return (
-      <div className="bg-[var(--card-bg)] border border-[var(--border-soft)] rounded-xl p-6 text-center text-[var(--text-secondary)]">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 text-center text-[var(--text-secondary)]">
         数据加载失败
       </div>
     );
   }
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--accent-green)]/30 rounded-xl p-6 shadow-md">
+    <div className="bg-[var(--bg-card)] border border-[var(--accent)]/30 rounded-xl p-6 shadow-md">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -141,23 +160,23 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[var(--bg-warm-light)] rounded-lg p-3 text-center">
+          <div className="bg-[var(--bg-hover)] rounded-lg p-3 text-center">
             <div className="text-lg font-bold text-red-500">
               {data.stats.bullishCount}
             </div>
             <div className="text-xs text-[var(--text-secondary)]">看多</div>
           </div>
-          <div className="bg-[var(--bg-warm-light)] rounded-lg p-3 text-center">
+          <div className="bg-[var(--bg-hover)] rounded-lg p-3 text-center">
             <div className="text-lg font-bold text-green-500">
               {data.stats.bearishCount}
             </div>
             <div className="text-xs text-[var(--text-secondary)]">看空</div>
           </div>
-          <div className="bg-[var(--bg-warm-light)] rounded-lg p-3 text-center">
+          <div className="bg-[var(--bg-hover)] rounded-lg p-3 text-center">
             <div className="text-lg font-bold">{data.stats.mentionCount}</div>
             <div className="text-xs text-[var(--text-secondary)]">总提及</div>
           </div>
-          <div className="bg-[var(--bg-warm-light)] rounded-lg p-3 text-center">
+          <div className="bg-[var(--bg-hover)] rounded-lg p-3 text-center">
             <div className="text-lg font-bold">{data.topBloggers.length}</div>
             <div className="text-xs text-[var(--text-secondary)]">覆盖博主</div>
           </div>
@@ -180,7 +199,7 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
           {data.topBloggers.slice(0, 6).map((b) => (
             <span
               key={b.xUsername}
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--bg-warm-light)] text-xs"
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--bg-hover)] text-xs"
             >
               <span
                 className="w-3 h-3 rounded-full"
@@ -210,8 +229,12 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
             {data.etfs.map((etf, i) => (
               <button
                 key={etf.ticker}
-                onClick={() => onSelectTicker(etf.ticker)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-warm-light)] text-sm border border-[var(--border-soft)] hover:border-[var(--accent-green)]/40 hover:bg-[var(--bg-warm)] transition-colors"
+                onClick={() => handleSelectTicker(etf.ticker)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                  chartTicker === etf.ticker
+                    ? "bg-[var(--accent)]/10 border-[var(--accent)]/40 text-[var(--accent)]"
+                    : "bg-[var(--bg-hover)] border-[var(--border)] hover:border-[var(--accent)]/40"
+                }`}
               >
                 <span className="text-xs text-[var(--text-secondary)]">
                   {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
@@ -220,6 +243,39 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
                 <span className="text-[var(--text-secondary)]">{etf.name}</span>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Inline K-line chart — expands when ETF is clicked */}
+      {chartTicker && (
+        <div ref={chartRef} className="mb-6 border border-[var(--accent)]/20 rounded-xl overflow-hidden">
+          <div className="bg-[var(--bg-hover)] px-4 py-2 flex items-center justify-between border-b border-[var(--border)]">
+            <h4 className="text-xs font-medium text-[var(--text-primary)]">
+              📈 {chartTicker} · K 线图
+            </h4>
+            <button
+              onClick={() => setChartTicker(null)}
+              className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            >
+              收起 ✕
+            </button>
+          </div>
+          <div className="p-3">
+            <PriceChart
+              market={market}
+              ticker={chartTicker}
+              selectedBlogger={chartBlogger}
+              onMentionClick={handleMentionClick}
+            />
+          </div>
+          <div className="border-t border-[var(--border)] p-3">
+            <PostTimeline
+              market={market}
+              ticker={chartTicker}
+              selectedBlogger={chartBlogger}
+              highlightPostId={highlightPostId}
+            />
           </div>
         </div>
       )}
@@ -233,7 +289,7 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
           {data.recentOpinions.map((op) => (
             <div
               key={op.id}
-              className="flex items-start gap-3 p-3 rounded-lg bg-[var(--bg-warm-light)] text-sm"
+              className="flex items-start gap-3 p-3 rounded-lg bg-[var(--bg-hover)] text-sm"
             >
               <span
                 className="w-4 h-4 rounded-full mt-0.5 shrink-0"
@@ -282,7 +338,7 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
                     href={op.post.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[var(--accent-green)] hover:underline"
+                    className="text-[var(--accent)] hover:underline"
                   >
                     查看原帖 →
                   </a>

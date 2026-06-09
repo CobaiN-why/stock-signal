@@ -38,7 +38,7 @@ export default function AvatarWall({ bloggers, max = 5, size = "sm" }: Props) {
       })}
       {bloggers.length > max && (
         <span
-          className={`${sizeClass} rounded-full bg-[var(--border-soft)] flex items-center justify-center text-[var(--text-secondary)] text-[10px] font-medium border-2 border-white`}
+          className={`${sizeClass} rounded-full bg-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] text-[10px] font-medium border-2 border-white`}
         >
           +{bloggers.length - max}
         </span>
