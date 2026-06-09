@@ -3,6 +3,7 @@ import { getAiModel, getAiProvider } from "@/lib/ai";
 type Sentiment = "bullish" | "bearish";
 
 const warnedAiErrors = new Set<string>();
+const TARGET_WINDOW_CHARS = 180;
 
 // English keywords: matched with word boundaries to avoid substring false positives
 // (e.g. "short timeframe" matching "short", "selling" matching "sell")
@@ -10,6 +11,10 @@ const BULLISH_EN = [
   "\\bbuy\\b", "\\blong\\b", "\\bbullish\\b", "\\bcalls\\b", "\\bundervalued\\b",
   "\\bmoon\\b", "\\bbreakout\\b", "\\baccumulate\\b", "\\bupside\\b", "\\brally\\b",
   "\\bbottom\\b", "\\bdip buy\\b", "\\bloading\\b", "\\bgoing up\\b", "\\bbuy the dip\\b",
+  "\\boutperform\\b", "\\bbeat(s|ing)?\\b", "\\bupgrade(s|d)?\\b", "\\bre-rate\\b",
+  "\\bstrong demand\\b", "\\bdemand acceleration\\b", "\\bcapacity constrained\\b",
+  "\\bsupply constrained\\b", "\\bpricing power\\b", "\\bmargin expansion\\b",
+  "\\bearnings revision(s)?\\b", "\\bbeneficiar(y|ies)\\b", "\\btailwind(s)?\\b",
   // gains / multiplier signals — high precision, very unlikely to be bearish
   "\\b\\d+x(?:'d|d|ing)?\\b",          // 10x, 100x, 10x'd, 3xing
   "\\bup \\d[\\d,.%-]*%",               // up 200%, up 83.3%, up 1,000%, up 200-1000%
@@ -30,40 +35,103 @@ const BEARISH_EN = [
   "\\bbearish\\b", "\\bputs\\b", "\\bovervalued\\b",
   "\\bcrash\\b", "\\bdump\\b", "\\bdownside\\b", "\\bbubble\\b", "\\btrim\\b",
   "\\bgoing down\\b", "\\bshorting\\b",
+  "\\bunderperform\\b", "\\bdowngrade(s|d)?\\b", "\\bmiss(es|ed|ing)?\\b",
+  "\\bweak demand\\b", "\\bdemand slowdown\\b", "\\bovercrowded\\b",
+  "\\bcrowded trade\\b", "\\bmargin pressure\\b", "\\binventory pressure\\b",
+  "\\bearnings cut(s)?\\b", "\\bheadwind(s)?\\b", "\\bpriced in\\b",
 ];
 
 // Chinese keywords: no word boundaries needed (Chinese has no whitespace tokenization)
 const BULLISH_CN = [
   "加仓", "看好", "看多", "买入", "上车", "抄底", "起飞", "底部",
   "利好", "做多", "建仓", "景气", "复苏", "突破", "上行", "反转",
-  "主线", "机会", "超预期", "高增长", "受益",
+  "主线", "机会", "超预期", "高增长", "受益", "催化", "放量",
+  "资金流入", "修复", "改善", "供不应求", "涨价", "提价", "扩产",
+  "订单饱满", "业绩上修", "估值修复", "政策支持", "国产替代",
 ];
 
 const BEARISH_CN = [
   "减仓", "看空", "卖出", "下车", "见顶", "泡沫", "崩", "做空",
   "利空", "清仓", "逃顶", "下行", "承压", "走弱", "退潮", "风险",
-  "低预期", "不及预期", "杀估值",
+  "低预期", "不及预期", "杀估值", "价格战", "库存压力", "去库存",
+  "需求走弱", "需求放缓", "盈利下修", "业绩下修", "估值过高",
+  "拥挤", "兑现", "补跌", "破位",
 ];
+
+const NEGATION_EN = [
+  "\\bnot\\b", "\\bno\\b", "\\bnever\\b", "\\bwithout\\b", "\\bavoid\\b",
+  "\\bdoesn'?t\\b", "\\bdon'?t\\b", "\\bisn'?t\\b", "\\baren'?t\\b",
+];
+
+const NEGATION_CN = ["不", "没", "无", "别", "避免", "不是", "不能", "难以"];
 
 const bullishEnRegexes = BULLISH_EN.map((p) => new RegExp(p, "i"));
 const bearishEnRegexes = BEARISH_EN.map((p) => new RegExp(p, "i"));
+const negationEnRegexes = NEGATION_EN.map((p) => new RegExp(p, "i"));
 
-export function detectSentimentByRules(text: string): Sentiment | null {
-  const lower = text.toLowerCase();
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function windowsAroundTarget(text: string, target?: string): string[] {
+  if (!target) return [text];
+  const cleanTarget = target.replace(/^\$/, "").trim();
+  if (!cleanTarget) return [text];
+
+  const matcher = new RegExp(`\\$?${escapeRegex(cleanTarget)}`, "gi");
+  const windows: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = matcher.exec(text)) !== null) {
+    const start = Math.max(0, match.index - TARGET_WINDOW_CHARS);
+    const end = Math.min(text.length, match.index + match[0].length + TARGET_WINDOW_CHARS);
+    windows.push(text.slice(start, end));
+  }
+  return windows.length > 0 ? windows : [text];
+}
+
+function hasNearbyNegation(scope: string, matchIndex: number): boolean {
+  const prefix = scope.slice(Math.max(0, matchIndex - 24), matchIndex);
+  const lowerPrefix = prefix.toLowerCase();
+  return (
+    negationEnRegexes.some((re) => re.test(prefix)) ||
+    NEGATION_CN.some((kw) => lowerPrefix.includes(kw))
+  );
+}
+
+function scoreRegexes(scope: string, regexes: RegExp[]): number {
+  let score = 0;
+  for (const re of regexes) {
+    re.lastIndex = 0;
+    const match = re.exec(scope);
+    if (!match) continue;
+    score += hasNearbyNegation(scope, match.index) ? -1 : 1;
+  }
+  return score;
+}
+
+function scoreKeywords(scope: string, keywords: string[]): number {
+  const lower = scope.toLowerCase();
+  let score = 0;
+  for (const kw of keywords) {
+    const idx = lower.indexOf(kw.toLowerCase());
+    if (idx < 0) continue;
+    score += hasNearbyNegation(scope, idx) ? -1 : 1;
+  }
+  return score;
+}
+
+export function detectSentimentByRules(
+  text: string,
+  target?: string
+): Sentiment | null {
   let bullCount = 0;
   let bearCount = 0;
 
-  for (const re of bullishEnRegexes) {
-    if (re.test(text)) bullCount++;
-  }
-  for (const kw of BULLISH_CN) {
-    if (lower.includes(kw)) bullCount++;
-  }
-  for (const re of bearishEnRegexes) {
-    if (re.test(text)) bearCount++;
-  }
-  for (const kw of BEARISH_CN) {
-    if (lower.includes(kw)) bearCount++;
+  for (const scope of windowsAroundTarget(text, target)) {
+    bullCount += scoreRegexes(scope, bullishEnRegexes);
+    bullCount += scoreKeywords(scope, BULLISH_CN);
+    bearCount += scoreRegexes(scope, bearishEnRegexes);
+    bearCount += scoreKeywords(scope, BEARISH_CN);
   }
 
   if (bullCount > bearCount) return "bullish";
@@ -75,7 +143,7 @@ export async function detectSentiment(
   text: string,
   target: string
 ): Promise<Sentiment | null> {
-  const rulesResult = detectSentimentByRules(text);
+  const rulesResult = detectSentimentByRules(text, target);
   if (rulesResult) return rulesResult;
 
   const provider = getAiProvider("sentiment");
