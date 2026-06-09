@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMarket } from "@/lib/market-context";
 import SentimentLight from "./SentimentLight";
 import CredibilityBadge from "./CredibilityBadge";
@@ -52,6 +52,14 @@ export default function SignalOverview() {
   const [loading, setLoading] = useState(true);
   const [selectedSector, setSelectedSector] = useState<SectorSummary | null>(null);
   const [chartForSector, setChartForSector] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to detail when a sector is selected
+  useEffect(() => {
+    if (selectedSector && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedSector]);
 
   useEffect(() => {
     setLoading(true);
@@ -279,7 +287,7 @@ export default function SignalOverview() {
 
       {/* Sector detail panel */}
       {selectedSector && (
-        <div className="mt-6">
+        <div ref={detailRef} className="mt-6">
           <SectorDetail
             slug={selectedSector.slug}
             initialChartTicker={chartForSector ?? undefined}
