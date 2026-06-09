@@ -9,8 +9,8 @@ Multi-source market signal dashboard. Tracks finance bloggers, extracts stock an
 - **Charts**: TradingView Lightweight Charts
 - **Styling**: Tailwind CSS
 - **External APIs**: TwitterAPI.io, Twelve Data (US price bars), Finnhub (US quote + profile), AkShare via Python (CN bars/quotes/profiles), Kimi (Moonshot) AI, DeepSeek AI
-- **Hosting**: Railway
-- **Cron**: cron-job.org (daily trigger)
+- **Hosting**: Self-hosted Linux server (10.67.228.33), PM2 process manager
+- **Cron**: cron-job.org → `/api/cron/daily` (daily trigger)
 
 ## Commands
 
@@ -82,7 +82,7 @@ scripts/
 - New external data sources should implement `PostSource` or `MarketDataProvider` instead of branching inside API routes
 - CN market data requires Python dependencies: `python3 -m pip install akshare pandas`
 - AI model changes should go through `src/lib/ai`; prefer env overrides over hard-coded model names
-- Deployment: `git push` to `maomou/stock-signal` (GitHub) → Railway auto-deploys
+- Deployment: `git push` → SSH to 10.67.228.33 → `git pull` → `npm run build` → `pm2 restart stock-signal`
 
 ## Caching Strategy
 
