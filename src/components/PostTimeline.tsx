@@ -21,6 +21,31 @@ interface Post {
     sentiment: string | null;
     sector: { slug: string; name: string; market: string };
   }[];
+  mappings?: {
+    stocks: {
+      ticker: string;
+      market: string;
+      assetType: string;
+      associationType: string;
+      sentiment: string | null;
+    }[];
+    sectors: {
+      slug: string;
+      name: string;
+      market: string;
+      confidence: number;
+      evidence: string;
+      sentiment: string | null;
+      associationType: string;
+    }[];
+    etfs: {
+      ticker: string;
+      market: string;
+      name: string;
+      sourceSectors: string[];
+      associationType: string;
+    }[];
+  };
 }
 
 interface Props {
@@ -58,6 +83,33 @@ export default function PostTimeline({
       el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [highlightPostId]);
+
+  const stockMappings = (post: Post) =>
+    post.mappings?.stocks ??
+    post.postStocks.map((ps) => ({
+      ticker: ps.stock.ticker,
+      market: ps.stock.market,
+      assetType: "STOCK",
+      associationType: "direct_stock",
+      sentiment: null,
+    }));
+
+  const sectorMappings = (post: Post) =>
+    post.mappings?.sectors ??
+    post.postSectors.map((ps) => ({
+      slug: ps.sector.slug,
+      name: ps.sector.name,
+      market: ps.sector.market,
+      confidence: Number(ps.confidence),
+      evidence: ps.evidence,
+      sentiment: ps.sentiment,
+      associationType:
+        Number(ps.confidence) >= 0.7
+          ? "direct_or_etf_sector"
+          : "weak_inferred_sector",
+    }));
+
+  const etfMappings = (post: Post) => post.mappings?.etfs ?? [];
 
   if (!ticker) {
     return (
@@ -104,22 +156,33 @@ export default function PostTimeline({
                   minute: "2-digit",
                 })}
               </span>
-              <div className="ml-auto flex gap-1">
-                {post.postStocks.map((ps) => (
+              <div className="ml-auto flex gap-1 flex-wrap justify-end">
+                {stockMappings(post).map((stock) => (
                   <span
-                    key={`${ps.stock.market}:${ps.stock.ticker}`}
+                    key={`${stock.market}:${stock.ticker}`}
                     className="text-xs bg-[var(--border-soft)] rounded px-1.5 py-0.5 font-mono"
+                    title={stock.assetType === "ETF" ? "直接 ETF" : "直接个股"}
                   >
-                    {ps.stock.market === "US" ? "$" : ""}{ps.stock.ticker}
+                    {stock.market === "US" ? "$" : ""}{stock.ticker}
+                    {stock.assetType === "ETF" ? " ETF" : ""}
                   </span>
                 ))}
-                {post.postSectors.map((ps) => (
+                {sectorMappings(post).map((sector) => (
                   <span
-                    key={`${ps.sector.market}:${ps.sector.slug}`}
-                    title={ps.evidence}
+                    key={`${sector.market}:${sector.slug}`}
+                    title={`${sector.evidence} / 置信度 ${Math.round(sector.confidence * 100)}%`}
                     className="text-xs bg-[var(--accent-green)]/10 text-[var(--accent-green)] rounded px-1.5 py-0.5"
                   >
-                    {Number(ps.confidence) >= 0.7 ? "板块" : "弱关联"}:{ps.sector.name}
+                    {sector.confidence >= 0.7 ? "板块" : "弱关联"}:{sector.name}
+                  </span>
+                ))}
+                {etfMappings(post).slice(0, 3).map((etf) => (
+                  <span
+                    key={`${etf.market}:${etf.ticker}`}
+                    title={`由板块推荐：${etf.sourceSectors.join("、")}`}
+                    className="text-xs bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 font-mono"
+                  >
+                    ETF:{etf.ticker}
                   </span>
                 ))}
               </div>

@@ -10,6 +10,7 @@ import {
   type StockMention,
 } from "../src/lib/stock-identifier.js";
 import { expandSectorMentionsWithLinks } from "../src/lib/sector-links.js";
+import { inferSectorsFromStockMention } from "../src/lib/stock-sector-mapping.js";
 import {
   detectSentiment,
   detectSentimentByRules,
@@ -103,33 +104,6 @@ async function detectPostSentiment(
 ): Promise<Sentiment> {
   if (rulesOnly) return detectSentimentByRules(text);
   return detectSentiment(text, target);
-}
-
-async function inferSectorFromStock(stockId: string, ticker: string): Promise<SectorMention | null> {
-  const stock = await prisma.stock.findUnique({
-    where: { id: stockId },
-    select: {
-      sector: {
-        select: {
-          id: true,
-          market: true,
-          slug: true,
-          name: true,
-        },
-      },
-    },
-  });
-
-  if (!stock?.sector) return null;
-
-  return {
-    sectorId: stock.sector.id,
-    market: stock.sector.market === "CN" ? "CN" : "US",
-    slug: stock.sector.slug,
-    name: stock.sector.name,
-    evidence: `由 ${ticker} 推断`,
-    confidence: 0.25,
-  };
 }
 
 async function resolveStockId(
@@ -274,9 +248,16 @@ async function main() {
         }
 
         if (stockId) {
-          const inferredSector = await inferSectorFromStock(stockId, mention.ticker);
-          if (inferredSector && !sectorById.has(inferredSector.sectorId)) {
-            sectorById.set(inferredSector.sectorId, inferredSector);
+          const inferredSectors = await inferSectorsFromStockMention(
+            stockId,
+            mention.ticker,
+            mention.market,
+            mention.assetType
+          );
+          for (const inferredSector of inferredSectors) {
+            if (!sectorById.has(inferredSector.sectorId)) {
+              sectorById.set(inferredSector.sectorId, inferredSector);
+            }
           }
         }
 

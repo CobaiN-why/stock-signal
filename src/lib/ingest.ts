@@ -10,6 +10,7 @@ import {
   type StockMention,
 } from "@/lib/stock-identifier";
 import { expandSectorMentionsWithLinks } from "@/lib/sector-links";
+import { inferSectorsFromStockMention } from "@/lib/stock-sector-mapping";
 import { getPostSource } from "@/lib/social";
 import {
   recordDivergence,
@@ -83,8 +84,10 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
             postUrl: sourcePost.url,
           });
 
-          if (result.sector && !sectorMentionsById.has(result.sector.sectorId)) {
-            sectorMentionsById.set(result.sector.sectorId, result.sector);
+          for (const sector of result.sectors) {
+            if (!sectorMentionsById.has(sector.sectorId)) {
+              sectorMentionsById.set(sector.sectorId, sector);
+            }
           }
           stockMentions++;
         }
@@ -159,7 +162,7 @@ async function persistStockMention(input: {
 }): Promise<{
   stockId: string;
   sentiment: string | null;
-  sector: SectorMention | null;
+  sectors: SectorMention[];
 }> {
   const { id: stockId, isNew } = await ensureStockExists(
     input.mention.ticker,
@@ -189,31 +192,14 @@ async function persistStockMention(input: {
     });
   }
 
-  const stockSector = await prisma.stock.findUnique({
-    where: { id: stockId },
-    select: {
-      sector: {
-        select: {
-          id: true,
-          market: true,
-          slug: true,
-          name: true,
-        },
-      },
-    },
-  });
-  const inferredSector: SectorMention | null = stockSector?.sector
-    ? {
-        sectorId: stockSector.sector.id,
-        market: stockSector.sector.market === "CN" ? "CN" : "US",
-        slug: stockSector.sector.slug,
-        name: stockSector.sector.name,
-        evidence: `由 ${input.mention.ticker} 推断`,
-        confidence: 0.25,
-      }
-    : null;
+  const inferredSectors = await inferSectorsFromStockMention(
+    stockId,
+    input.mention.ticker,
+    input.mention.market,
+    input.mention.assetType
+  );
 
-  if (!sentiment) return { stockId, sentiment, sector: inferredSector };
+  if (!sentiment) return { stockId, sentiment, sectors: inferredSectors };
 
   const previousPost = await prisma.postStock.findFirst({
     where: {
@@ -250,7 +236,7 @@ async function persistStockMention(input: {
 
   const sentiments = new Set(latestByBlogger.map((r) => r.sentiment));
   if (!sentiments.has("bullish") || !sentiments.has("bearish")) {
-    return { stockId, sentiment, sector: inferredSector };
+    return { stockId, sentiment, sectors: inferredSectors };
   }
 
   const previousByBlogger = await prisma.$queryRaw<{ sentiment: string }[]>`
@@ -265,7 +251,7 @@ async function persistStockMention(input: {
 
   const prevSentiments = new Set(previousByBlogger.map((r) => r.sentiment));
   if (prevSentiments.size > 1) {
-    return { stockId, sentiment, sector: inferredSector };
+    return { stockId, sentiment, sectors: inferredSectors };
   }
 
   const detailedLatest = await prisma.$queryRaw<
@@ -297,5 +283,5 @@ async function persistStockMention(input: {
     postUrl: input.postUrl,
   });
 
-  return { stockId, sentiment, sector: inferredSector };
+  return { stockId, sentiment, sectors: inferredSectors };
 }

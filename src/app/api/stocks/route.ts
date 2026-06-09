@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       },
       sector: {
         select: {
+          id: true,
           _count: { select: { postSectors: true } },
           postSectors: {
             select: {
@@ -36,6 +37,36 @@ export async function GET(req: NextRequest) {
       { ticker: "asc" },
     ],
   });
+  const etfTickers = stocks
+    .filter((stock) => stock.assetType === "ETF")
+    .map((stock) => stock.ticker);
+  const mappedEtfs =
+    etfTickers.length > 0
+      ? await prisma.sectorEtf.findMany({
+          where: { market, ticker: { in: etfTickers } },
+          include: {
+            sector: {
+              select: {
+                id: true,
+                _count: { select: { postSectors: true } },
+                postSectors: {
+                  select: {
+                    post: { select: { postedAt: true } },
+                  },
+                  orderBy: { post: { postedAt: "desc" } },
+                  take: 1,
+                },
+              },
+            },
+          },
+        })
+      : [];
+  const mappedSectorsByTicker = new Map<string, typeof mappedEtfs>();
+  for (const item of mappedEtfs) {
+    const items = mappedSectorsByTicker.get(item.ticker) ?? [];
+    items.push(item);
+    mappedSectorsByTicker.set(item.ticker, items);
+  }
 
   let filtered = stocks;
   if (filter === "has_price") {
@@ -45,12 +76,30 @@ export async function GET(req: NextRequest) {
   }
 
   const result = filtered.map((s) => {
-    const sectorMentionCount =
-      s.assetType === "ETF" ? (s.sector?._count.postSectors ?? 0) : 0;
+    const sectorIds = new Set<string>();
+    let sectorMentionCount = 0;
+    const mappedSectors = mappedSectorsByTicker.get(s.ticker) ?? [];
+    if (s.assetType === "ETF" && s.sector) {
+      sectorIds.add(s.sector.id);
+      sectorMentionCount += s.sector._count.postSectors;
+    }
+    if (s.assetType === "ETF") {
+      for (const mapped of mappedSectors) {
+        if (sectorIds.has(mapped.sector.id)) continue;
+        sectorIds.add(mapped.sector.id);
+        sectorMentionCount += mapped.sector._count.postSectors;
+      }
+    }
     const directMentionCount = s._count.postStocks;
     const totalMentionCount = directMentionCount + sectorMentionCount;
     const latestDirect = s.postStocks[0]?.post.postedAt ?? null;
-    const latestSector = s.sector?.postSectors[0]?.post.postedAt ?? null;
+    const mappedLatestSector =
+      mappedSectors
+        .map((mapped) => mapped.sector.postSectors[0]?.post.postedAt)
+        .filter((date): date is Date => Boolean(date))
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    const latestSector =
+      s.sector?.postSectors[0]?.post.postedAt ?? mappedLatestSector;
     const lastMentionedAt =
       latestDirect && latestSector
         ? latestDirect > latestSector

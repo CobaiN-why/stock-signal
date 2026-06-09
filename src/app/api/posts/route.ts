@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { normalizeMarket } from "@/lib/markets";
+import { buildPostMappings } from "@/lib/post-mappings";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -17,6 +18,19 @@ export async function GET(req: NextRequest) {
       where: { market_ticker: { market, ticker: ticker.toUpperCase() } },
       select: { assetType: true, sectorId: true },
     });
+    const mappedSectorEtfs =
+      stock?.assetType === "ETF"
+        ? await prisma.sectorEtf.findMany({
+            where: { market, ticker: ticker.toUpperCase() },
+            select: { sectorId: true },
+          })
+        : [];
+    const sectorIds = Array.from(
+      new Set([
+        ...(stock?.sectorId ? [stock.sectorId] : []),
+        ...mappedSectorEtfs.map((etf) => etf.sectorId),
+      ])
+    );
 
     where.OR = [
       {
@@ -24,8 +38,8 @@ export async function GET(req: NextRequest) {
           some: { stock: { ticker: ticker.toUpperCase(), market } },
         },
       },
-      ...(stock?.assetType === "ETF" && stock.sectorId
-        ? [{ postSectors: { some: { sectorId: stock.sectorId } } }]
+      ...(stock?.assetType === "ETF" && sectorIds.length > 0
+        ? [{ postSectors: { some: { sectorId: { in: sectorIds } } } }]
         : []),
     ];
   }
@@ -49,11 +63,37 @@ export async function GET(req: NextRequest) {
           },
         },
         postStocks: {
-          include: { stock: { select: { ticker: true, market: true } } },
+          include: {
+            stock: {
+              select: {
+                ticker: true,
+                market: true,
+                assetType: true,
+                companyName: true,
+              },
+            },
+          },
         },
         postSectors: {
           include: {
-            sector: { select: { slug: true, name: true, market: true } },
+            sector: {
+              select: {
+                id: true,
+                slug: true,
+                name: true,
+                market: true,
+                etfs: {
+                  orderBy: { rank: "asc" },
+                  take: 5,
+                  select: {
+                    ticker: true,
+                    market: true,
+                    name: true,
+                    rank: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -61,5 +101,13 @@ export async function GET(req: NextRequest) {
     prisma.post.count({ where }),
   ]);
 
-  return NextResponse.json({ posts, total, limit, offset });
+  return NextResponse.json({
+    posts: posts.map((post) => ({
+      ...post,
+      mappings: buildPostMappings(post),
+    })),
+    total,
+    limit,
+    offset,
+  });
 }
