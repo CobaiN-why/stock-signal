@@ -4,13 +4,26 @@ import { normalizeMarket } from "@/lib/markets";
 
 export async function GET(req: NextRequest) {
   const market = normalizeMarket(req.nextUrl.searchParams.get("market"));
+  const includeEmpty = req.nextUrl.searchParams.get("includeEmpty") === "true";
+  const daysParam = Number(req.nextUrl.searchParams.get("days") ?? "30");
+  const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : 30;
+  const since = new Date(Date.now() - days * 86400000);
 
   const sectors = await prisma.sector.findMany({
-    where: { market },
-    orderBy: { name: "asc" },
+    where: {
+      market,
+      ...(includeEmpty
+        ? {}
+        : { postSectors: { some: { post: { postedAt: { gte: since } } } } }),
+    },
+    orderBy: [
+      { postSectors: { _count: "desc" } },
+      { name: "asc" },
+    ],
     include: {
       etfs: { orderBy: { rank: "asc" } },
       postSectors: {
+        where: includeEmpty ? {} : { post: { postedAt: { gte: since } } },
         orderBy: { post: { postedAt: "desc" } },
         include: {
           post: {
@@ -35,6 +48,8 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({
+    days,
+    includeEmpty,
     sectors: sectors.map((sector) => {
       const directCount = sector.postSectors.filter(
         (ps) => Number(ps.confidence) >= 0.7

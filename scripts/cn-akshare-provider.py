@@ -36,8 +36,8 @@ except Exception:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fetch China market data via AkShare")
-    parser.add_argument("command", choices=["bars", "quote", "profile"])
-    parser.add_argument("--symbol", required=True)
+    parser.add_argument("command", choices=["bars", "quote", "profile", "sectors"])
+    parser.add_argument("--symbol")
     parser.add_argument("--asset-type", choices=["STOCK", "ETF"], default="STOCK")
     parser.add_argument("--from-date")
     parser.add_argument("--to-date")
@@ -243,14 +243,57 @@ def fetch_profile(symbol, asset_type):
     }
 
 
+def read_sector_frame(fetcher, category):
+    try:
+        df = fetcher()
+    except Exception as exc:
+        print(
+            json.dumps(
+                {"warning": f"eastmoney {category} sector fetch failed: {exc}"},
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+        return []
+
+    sectors = []
+    if df is None or df.empty:
+        return sectors
+
+    for _, row in df.iterrows():
+        name = str(row.get("板块名称", "") or row.get("名称", "")).strip()
+        if not name:
+            continue
+        sectors.append(
+            {
+                "category": category,
+                "name": name,
+                "code": str(row.get("板块代码", "") or row.get("代码", "")).strip(),
+            }
+        )
+    return sectors
+
+
+def fetch_sectors():
+    sectors = []
+    sectors.extend(read_sector_frame(ak.stock_board_industry_name_em, "industry"))
+    sectors.extend(read_sector_frame(ak.stock_board_concept_name_em, "concept"))
+    return sectors
+
+
 def main():
     args = parse_args()
-    symbol = args.symbol.strip()
+    symbol = args.symbol.strip() if args.symbol else ""
+
+    if args.command != "sectors" and not symbol:
+        fail("--symbol is required for bars, quote, and profile")
 
     if args.command == "bars":
         payload = fetch_bars(symbol, args.asset_type, args.from_date, args.to_date)
     elif args.command == "quote":
         payload = {"price": fetch_quote(symbol, args.asset_type)}
+    elif args.command == "sectors":
+        payload = fetch_sectors()
     else:
         payload = fetch_profile(symbol, args.asset_type)
 
