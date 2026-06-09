@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import MarketSwitcher from "@/components/MarketSwitcher";
 import TabNav from "@/components/TabNav";
 import SignalOverview from "@/components/SignalOverview";
@@ -13,7 +12,6 @@ import { useMarket } from "@/lib/market-context";
 
 export default function Dashboard() {
   const { market } = useMarket();
-  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [selectedBlogger, setSelectedBlogger] = useState<string | null>(null);
@@ -21,11 +19,14 @@ export default function Dashboard() {
 
   // Read ticker from URL on first load
   useEffect(() => {
-    const tickerParam = searchParams.get("ticker");
-    if (tickerParam) {
-      setSelectedTicker(tickerParam);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tickerParam = params.get("ticker");
+      if (tickerParam) {
+        setSelectedTicker(tickerParam);
+      }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelectTicker = useCallback(
     (ticker: string | null) => {
