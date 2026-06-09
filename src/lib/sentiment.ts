@@ -1,4 +1,4 @@
-import { getAiModel, getAiProvider } from "@/lib/ai";
+import { getAiFallbackModel, getAiProvider } from "@/lib/ai";
 
 type Sentiment = "bullish" | "bearish";
 
@@ -255,7 +255,7 @@ Reply with exactly one word: bullish, bearish, or unknown. Nothing else.`;
           },
         ],
         {
-          model: getAiModel("sentiment"),
+          model: getAiFallbackModel(),
           temperature: 0,
           maxTokens: 10,
         }

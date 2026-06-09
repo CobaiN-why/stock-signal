@@ -9,6 +9,7 @@ const providers: Record<string, AiProvider> = {
 };
 
 const DEFAULT_AI_PROVIDER = "deepseek";
+const DEFAULT_AI_FALLBACK_MODEL = "deepseek-v4-flash";
 
 export function getAiProvider(kind: "sentiment" | "analysis" = "sentiment"): AiProvider | null {
   const raw =
@@ -24,6 +25,14 @@ export function getAiModel(kind: "sentiment" | "analysis"): string | undefined {
     return process.env.SENTIMENT_AI_MODEL;
   }
   return process.env.ANALYSIS_AI_MODEL;
+}
+
+export function getAiFallbackModel(): string {
+  return (
+    process.env.AI_FALLBACK_MODEL?.trim() ||
+    process.env.SENTIMENT_AI_MODEL?.trim() ||
+    DEFAULT_AI_FALLBACK_MODEL
+  );
 }
 
 export type { AiProvider, ChatCompletionOptions, ChatMessage } from "./types";

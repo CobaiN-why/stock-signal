@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getAiModel, getAiProvider } from "@/lib/ai";
+import { getAiFallbackModel, getAiProvider } from "@/lib/ai";
 import { ALL_MARKETS, DEFAULT_MARKET, normalizeMarket, type Market } from "@/lib/markets";
 
 export interface SectorMention {
@@ -128,7 +128,7 @@ Rules:
         },
       ],
       {
-        model: getAiModel("analysis"),
+        model: getAiFallbackModel(),
         temperature: 0,
         maxTokens: 300,
       }

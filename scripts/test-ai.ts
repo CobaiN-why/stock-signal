@@ -1,4 +1,8 @@
-import { getAiModel, getAiProvider } from "../src/lib/ai/index.js";
+import {
+  getAiFallbackModel,
+  getAiModel,
+  getAiProvider,
+} from "../src/lib/ai/index.js";
 import { detectSentiment } from "../src/lib/sentiment.js";
 import { identifySectorsAcrossMarkets } from "../src/lib/sector-identifier.js";
 import { prisma } from "../src/lib/db.js";
@@ -14,6 +18,7 @@ async function main() {
     sentimentModel: getAiModel("sentiment") ?? sentimentProvider?.defaultModel ?? "(none)",
     analysisProvider: analysisProvider?.name ?? "(none)",
     analysisModel: getAiModel("analysis") ?? analysisProvider?.defaultModel ?? "(none)",
+    aiFallbackModel: getAiFallbackModel(),
     deepseekKeyPresent: hasDeepSeekKey,
   });
 
@@ -29,7 +34,7 @@ async function main() {
       },
     ],
     {
-      model: getAiModel("sentiment"),
+      model: getAiFallbackModel(),
       temperature: 0,
       maxTokens: 10,
     }
