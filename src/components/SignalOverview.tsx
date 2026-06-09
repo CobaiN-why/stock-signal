@@ -151,20 +151,17 @@ export default function SignalOverview() {
         <SummaryCard
           emoji="📌"
           title="推荐关注"
-          value={strongest?.primaryEtf?.ticker ?? "—"}
+          value={strongest?.primaryEtf?.name ?? strongest?.primaryEtf?.ticker ?? "—"}
           subtitle={
-            strongest?.confidenceLabel === "高"
-              ? "高可信博主一致看好 · 点击查看K线"
-              : "点击查看K线"
+            strongest?.primaryEtf
+              ? `${strongest.primaryEtf.ticker} · 点击查看K线`
+              : "暂无推荐"
           }
           highlight
           onClick={() => {
             if (strongest) {
+              setChartForSector(strongest.primaryEtf?.ticker ?? null);
               setSelectedSector(strongest);
-              // Pass initialChartTicker via a small delay to ensure SectorDetail mounts
-              setTimeout(() => {
-                setChartForSector(strongest.primaryEtf?.ticker ?? null);
-              }, 50);
             }
           }}
         />

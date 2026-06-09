@@ -78,6 +78,16 @@ export default function SectorDetail({ slug, initialChartTicker, onClose }: Prop
   const [highlightPostId, setHighlightPostId] = useState<string | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
+  // Sync chart when initialChartTicker prop changes (e.g. from "推荐关注" click)
+  useEffect(() => {
+    if (initialChartTicker) {
+      setChartTicker(initialChartTicker);
+      setTimeout(() => {
+        chartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 200);
+    }
+  }, [initialChartTicker]);
+
   const handleMentionClick = (postId: string) => {
     setHighlightPostId(postId);
     setTimeout(() => setHighlightPostId(null), 3000);
