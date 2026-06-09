@@ -28,10 +28,7 @@ export function buildPriceSyncStockWhere(
       : {
           OR: [
             { postStocks: { some: {} } },
-            {
-              assetType: "ETF",
-              sector: { postSectors: { some: {} } },
-            },
+            { assetType: "ETF" },  // sync all ETFs (needed for sector recommendation charts)
           ],
         }),
   };
@@ -51,9 +48,6 @@ export async function findPriceSyncStocks(
   const mappedEtfs = await prisma.sectorEtf.findMany({
     where: {
       ...(market ? { market } : {}),
-      sector: {
-        postSectors: { some: {} },
-      },
     },
     select: {
       market: true,
