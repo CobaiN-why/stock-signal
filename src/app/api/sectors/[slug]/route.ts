@@ -28,7 +28,10 @@ export async function GET(
     include: {
       etfs: { orderBy: { rank: "asc" } },
       postSectors: {
-        where: { post: { postedAt: { gte: since } } },
+        where: {
+          post: { postedAt: { gte: since } },
+          confidence: { gte: 0.35 },
+        },
         orderBy: { post: { postedAt: "desc" } },
         include: {
           post: {

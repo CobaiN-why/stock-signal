@@ -24,7 +24,10 @@ export async function GET(req: NextRequest) {
     include: {
       etfs: { orderBy: { rank: "asc" }, take: 3 },
       postSectors: {
-        where: { post: { postedAt: { gte: since } } },
+        where: {
+          post: { postedAt: { gte: since } },
+          confidence: { gte: 0.35 }, // exclude cross-market noise (0.15-0.18)
+        },
         include: {
           post: {
             select: {
