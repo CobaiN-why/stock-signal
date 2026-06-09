@@ -74,7 +74,7 @@ export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/sectors/${slug}?market=${market}&days=30`)
+    fetch(`/api/sectors/${slug}?market=${market}&days=3`)
       .then((r) => r.json())
       .then(setData)
       .catch(console.error)
