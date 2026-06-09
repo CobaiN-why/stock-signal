@@ -31,7 +31,7 @@ async function runAkshare<T>(args: string[]): Promise<T> {
     pythonCommand(),
     [scriptPath(), ...args],
     {
-      timeout: 60_000,
+      timeout: 120_000,
       maxBuffer: 1024 * 1024 * 10,
     }
   );

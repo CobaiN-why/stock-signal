@@ -110,36 +110,45 @@ def fetch_eastmoney_bars(symbol, from_date, to_date):
         "secid": eastmoney_secid(symbol),
     }
 
+    hosts = (
+        "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+        "https://82.push2his.eastmoney.com/api/qt/stock/kline/get",
+        "https://52.push2his.eastmoney.com/api/qt/stock/kline/get",
+    )
+
     last_error = None
-    for attempt in range(3):
-        try:
-            res = eastmoney_session().get(
-                "https://push2his.eastmoney.com/api/qt/stock/kline/get",
-                params=params,
-                timeout=20,
-            )
-            res.raise_for_status()
-            data = res.json()
-            klines = data.get("data", {}).get("klines") or []
-            bars = []
-            for item in klines:
-                parts = item.split(",")
-                if len(parts) < 6:
-                    continue
-                bars.append(
-                    {
-                        "date": parts[0],
-                        "open": float(parts[1]),
-                        "close": float(parts[2]),
-                        "high": float(parts[3]),
-                        "low": float(parts[4]),
-                        "volume": int(float(parts[5] or 0)),
-                    }
+    for host in hosts:
+        for attempt in range(3):
+            try:
+                res = eastmoney_session().get(
+                    host,
+                    params=params,
+                    timeout=30,
                 )
-            return bars
-        except Exception as exc:
-            last_error = exc
-            time.sleep(1 + attempt)
+                res.raise_for_status()
+                data = res.json()
+                klines = data.get("data", {}).get("klines") or []
+                if not klines:
+                    raise ValueError("empty klines response")
+                bars = []
+                for item in klines:
+                    parts = item.split(",")
+                    if len(parts) < 6:
+                        continue
+                    bars.append(
+                        {
+                            "date": parts[0],
+                            "open": float(parts[1]),
+                            "close": float(parts[2]),
+                            "high": float(parts[3]),
+                            "low": float(parts[4]),
+                            "volume": int(float(parts[5] or 0)),
+                        }
+                    )
+                return bars
+            except Exception as exc:
+                last_error = exc
+                time.sleep(2 + attempt * 2)
 
     raise last_error
 
