@@ -40,7 +40,11 @@ interface Stats {
   lastUpdated: string | null;
 }
 
-export default function SignalOverview() {
+interface Props {
+  onSelectTicker: (ticker: string | null) => void;
+}
+
+export default function SignalOverview({ onSelectTicker }: Props) {
   const { market } = useMarket();
   const [sectors, setSectors] = useState<SectorSummary[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -152,11 +156,15 @@ export default function SignalOverview() {
           value={strongest?.primaryEtf?.ticker ?? "—"}
           subtitle={
             strongest?.confidenceLabel === "高"
-              ? "高可信博主一致看好"
-              : undefined
+              ? "高可信博主一致看好 · 点击查看K线"
+              : "点击查看K线"
           }
           highlight
-          onClick={() => strongest && setSelectedSector(strongest)}
+          onClick={() => {
+            if (strongest?.primaryEtf) {
+              onSelectTicker(strongest.primaryEtf.ticker);
+            }
+          }}
         />
       </div>
 
@@ -257,6 +265,7 @@ export default function SignalOverview() {
           <SectorDetail
             slug={selectedSector.slug}
             onClose={() => setSelectedSector(null)}
+            onSelectTicker={onSelectTicker}
           />
         </div>
       )}

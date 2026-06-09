@@ -64,9 +64,10 @@ interface SectorDetailData {
 interface Props {
   slug: string;
   onClose: () => void;
+  onSelectTicker: (ticker: string | null) => void;
 }
 
-export default function SectorDetail({ slug, onClose }: Props) {
+export default function SectorDetail({ slug, onClose, onSelectTicker }: Props) {
   const { market } = useMarket();
   const [data, setData] = useState<SectorDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -207,17 +208,17 @@ export default function SectorDetail({ slug, onClose }: Props) {
           </h4>
           <div className="flex flex-wrap gap-2">
             {data.etfs.map((etf, i) => (
-              <a
+              <button
                 key={etf.ticker}
-                href={`/?market=${etf.market}&ticker=${etf.ticker}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-warm-light)] text-sm border border-[var(--border-soft)] hover:border-[var(--accent-green)]/40 transition-colors"
+                onClick={() => onSelectTicker(etf.ticker)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-warm-light)] text-sm border border-[var(--border-soft)] hover:border-[var(--accent-green)]/40 hover:bg-[var(--bg-warm)] transition-colors"
               >
                 <span className="text-xs text-[var(--text-secondary)]">
                   {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
                 </span>
                 <span className="font-mono font-medium">{etf.ticker}</span>
                 <span className="text-[var(--text-secondary)]">{etf.name}</span>
-              </a>
+              </button>
             ))}
           </div>
         </div>
