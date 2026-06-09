@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { ingestPostsFromActiveBloggers } from "@/lib/ingest";
@@ -6,6 +7,7 @@ import { fetchDailyBars, fetchLatestPrice, fetchStockProfile } from "@/lib/marke
 import { generateStockAnalysis } from "@/lib/kimi";
 import { buildStockResponse } from "@/lib/stock-response";
 import { normalizeMarket } from "@/lib/markets";
+import { buildPriceSyncStockWhere } from "@/lib/price-sync-selection";
 
 const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -29,7 +31,7 @@ async function runDailyJob() {
   // --- Step 2: Sync prices ---
   try {
     const stocks = await prisma.stock.findMany({
-      where: { postStocks: { some: {} } },
+      where: buildPriceSyncStockWhere(),
     });
     let synced = 0;
 
@@ -76,7 +78,13 @@ async function runDailyJob() {
             },
           });
         }
-        synced++;
+        if (bars.length > 0) {
+          await prisma.stock.update({
+            where: { id: stock.id },
+            data: { cachedResponse: Prisma.JsonNull },
+          });
+          synced++;
+        }
       } catch (err) {
         console.error(`Error syncing prices for ${stock.ticker}:`, err);
       }

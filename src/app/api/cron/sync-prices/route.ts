@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { fetchDailyBars } from "@/lib/market-data";
 import { normalizeMarket } from "@/lib/markets";
+import { buildPriceSyncStockWhere } from "@/lib/price-sync-selection";
 
 export async function POST(req: NextRequest) {
   const authError = verifyCronAuth(req);
@@ -14,15 +16,11 @@ export async function POST(req: NextRequest) {
   const market = marketParam ? normalizeMarket(marketParam) : null;
 
   const stocks = await prisma.stock.findMany({
-    where: tickerParam
-      ? {
-          market: market ?? "US",
-          ticker: tickerParam,
-        }
-      : {
-          ...(market ? { market } : {}),
-          ...(includeSeeded ? {} : { postStocks: { some: {} } }),
-        },
+    where: buildPriceSyncStockWhere({
+      market,
+      ticker: tickerParam,
+      includeSeeded,
+    }),
   });
 
   let synced = 0;
@@ -76,7 +74,13 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      synced++;
+      if (bars.length > 0) {
+        await prisma.stock.update({
+          where: { id: stock.id },
+          data: { cachedResponse: Prisma.JsonNull },
+        });
+        synced++;
+      }
     } catch (err) {
       console.error(`Error syncing prices for ${stock.ticker}:`, err);
     }
