@@ -92,11 +92,13 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
           stockMentions++;
         }
 
-        // Skip cross-market expansion — keep only direct matches for accuracy
-        // const expandedSectorMentions = await expandSectorMentionsWithLinks(...)
-        const directSectorMentions = Array.from(sectorMentionsById.values());
+        // Cross-market expansion: adds US→CN and CN→US links (confidence 0.15-0.18)
+        // These are weak but useful for trend detection and heat detection
+        const expandedSectorMentions = await expandSectorMentionsWithLinks(
+          sectorMentionsById.values()
+        );
 
-        for (const sector of directSectorMentions) {
+        for (const sector of expandedSectorMentions) {
           const sentiment = await detectSentiment(sourcePost.text, sector.name);
           await prisma.postSector.create({
             data: {
