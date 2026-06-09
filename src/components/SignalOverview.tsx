@@ -170,10 +170,12 @@ export default function SignalOverview() {
         />
       </div>
 
-      {/* Fund flow panel */}
-      <div className="mb-8">
-        <FundFlowPanel />
-      </div>
+      {/* Fund flow panel — only for A-share market */}
+      {market === "CN" && (
+        <div className="mb-8">
+          <FundFlowPanel />
+        </div>
+      )}
 
       {/* Sector signal list */}
       <h2 className="font-serif-title text-sm mb-4">板块信号</h2>
