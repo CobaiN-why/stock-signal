@@ -51,7 +51,8 @@ interface TencentKlineResponse {
   data?: Record<
     string,
     {
-      qfqday?: string[][]; // [date, open, close, high, low, volume]
+      qfqday?: string[][]; // SH: [date, open, close, high, low, volume]
+      day?: string[][];    // SZ: same format
       qt?: unknown;
     }
   >;
@@ -82,12 +83,14 @@ async function fetchTencentKlines(
   if (body.code !== 0 || !body.data) return [];
 
   const stockData = body.data[symbol];
-  if (!stockData?.qfqday || stockData.qfqday.length === 0) return [];
+  // Tencent returns 'qfqday' for SH stocks, 'day' for SZ stocks
+  const rows = stockData?.qfqday ?? stockData?.day;
+  if (!rows || rows.length === 0) return [];
 
   const fromTime = from.getTime();
   const toTime = to.getTime();
 
-  return stockData.qfqday
+  return rows
     .map((row) => {
       // Tencent format: [date, open, close, high, low, volume]
       if (row.length < 6) return null;
