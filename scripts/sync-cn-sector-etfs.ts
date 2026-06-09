@@ -48,6 +48,7 @@ const EXTRA_SYNONYMS: Record<string, string[]> = {
 };
 
 type SectorRow = Awaited<ReturnType<typeof loadCnSectors>>[number];
+const sectorTermsCache = new Map<string, string[]>();
 
 function parseArgs(argv: string[]): Options {
   const options: Options = { dryRun: false, maxPerSector: 5 };
@@ -126,26 +127,32 @@ function stripGenericSuffix(value: string): string {
 }
 
 function sectorTerms(sector: SectorRow): string[] {
-  const rawTerms = [
+  const cached = sectorTermsCache.get(sector.id);
+  if (cached) return cached;
+
+  const baseTerms = [
     sector.name,
     stripGenericSuffix(sector.name),
     ...sector.keywords.map((keyword) => keyword.keyword),
   ];
+  const expandedTerms = new Set(baseTerms);
 
-  for (const term of rawTerms) {
+  for (const term of baseTerms) {
     for (const synonym of EXTRA_SYNONYMS[term] ?? []) {
-      rawTerms.push(synonym);
+      expandedTerms.add(synonym);
     }
   }
 
-  return Array.from(
+  const terms = Array.from(
     new Set(
-      rawTerms
+      Array.from(expandedTerms)
         .map(normalizeText)
         .map(stripGenericSuffix)
         .filter((term) => term.length >= 2 && !GENERIC_TERMS.has(term))
     )
   );
+  sectorTermsCache.set(sector.id, terms);
+  return terms;
 }
 
 function scoreMatch(sector: SectorRow, etf: CnEtf): number {
