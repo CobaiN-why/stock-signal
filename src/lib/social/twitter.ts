@@ -90,8 +90,11 @@ export const twitterPostSource: PostSource = {
         return [];
       }
       const data = await res.json();
-      const users = data.data?.users ?? data.users ?? [];
-      return users.map((u: { userName?: string; name?: string }) => u.userName ?? u.name ?? "");
+      // API returns { followings: [...] } or { data: { users: [...] } }
+      const users = data.followings ?? data.data?.users ?? data.users ?? [];
+      return users.map((u: { userName?: string; name?: string; screen_name?: string }) =>
+        u.userName ?? u.screen_name ?? u.name ?? ""
+      );
     } catch (err) {
       console.error(`Twitter followings failed for @${username}:`, err);
       return [];

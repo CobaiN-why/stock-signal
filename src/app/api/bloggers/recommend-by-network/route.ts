@@ -38,11 +38,11 @@ export async function GET() {
         if (trackedSet.has(key)) continue; // skip already-tracked
         followCounts.set(key, (followCounts.get(key) ?? 0) + 1);
       }
-      // Rate limit: small delay between bloggers
-      await new Promise((r) => setTimeout(r, 500));
     } catch (err) {
       console.error(`Failed to fetch followings for @${blogger.xUsername}:`, err);
     }
+    // Rate limit: free tier = 1 req per 5 seconds
+    await new Promise((r) => setTimeout(r, 6000));
   }
 
   // Step 2: Get candidates followed by ≥2 tracked bloggers
@@ -74,7 +74,7 @@ export async function GET() {
           // Attach graph metadata — we'll add _meta in the response
         });
       }
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 5000));
     } catch (err) {
       console.error(`Profile fetch failed for @${username}:`, err);
     }
