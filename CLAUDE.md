@@ -10,7 +10,10 @@ Multi-source market signal dashboard. Tracks finance bloggers, extracts stock an
 - **Styling**: Tailwind CSS
 - **External APIs**: TwitterAPI.io, Twelve Data (US price bars), Finnhub (US quote + profile), AkShare via Python (CN bars/quotes/profiles), Kimi (Moonshot) AI, DeepSeek AI
 - **Hosting**: Self-hosted Linux server (10.67.228.33), PM2 process manager
-- **Cron**: cron-job.org → `/api/cron/daily` (daily trigger)
+- **Cron**: 本地 crontab (`crontab -l`)
+  - 盘中 (周一至五): 9:00/10:30/11:00/12:30/14:00/14:30 → `/api/cron/fetch-posts`
+  - 日终 (每天 21:00): `/api/cron/daily` (8步: 抓帖→K线→价格→档案→AI分析→缓存→回测→可信度)
+  - 回填 (每天 22:00): `/api/cron/backfill-posts`
 
 ## Commands
 
