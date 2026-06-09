@@ -144,6 +144,38 @@ def fetch_eastmoney_bars(symbol, from_date, to_date):
     raise last_error
 
 
+def fetch_eastmoney_clist(fs):
+    params = {
+        "pn": "1",
+        "pz": "5000",
+        "po": "1",
+        "np": "1",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2",
+        "invt": "2",
+        "fid": "f3",
+        "fs": fs,
+        "fields": "f12,f14",
+    }
+    hosts = (
+        "https://push2.eastmoney.com/api/qt/clist/get",
+        "https://17.push2.eastmoney.com/api/qt/clist/get",
+        "https://40.push2.eastmoney.com/api/qt/clist/get",
+    )
+    last_error = None
+    for host in hosts:
+        for attempt in range(3):
+            try:
+                res = eastmoney_session().get(host, params=params, timeout=20)
+                res.raise_for_status()
+                data = res.json()
+                return data.get("data", {}).get("diff") or []
+            except Exception as exc:
+                last_error = exc
+                time.sleep(1 + attempt)
+    raise last_error
+
+
 def fetch_bars(symbol, asset_type, from_date, to_date):
     start = compact_date(from_date)
     end = compact_date(to_date)
@@ -243,7 +275,7 @@ def fetch_profile(symbol, asset_type):
     }
 
 
-def read_sector_frame(fetcher, category):
+def read_sector_frame(fetcher, category, fallback_fs):
     try:
         df = fetcher()
     except Exception as exc:
@@ -254,7 +286,31 @@ def read_sector_frame(fetcher, category):
             ),
             file=sys.stderr,
         )
-        return []
+        try:
+            rows = fetch_eastmoney_clist(fallback_fs)
+            return [
+                {
+                    "category": category,
+                    "name": str(row.get("f14", "")).strip(),
+                    "code": str(row.get("f12", "")).strip(),
+                }
+                for row in rows
+                if str(row.get("f14", "")).strip()
+            ]
+        except Exception as fallback_exc:
+            print(
+                json.dumps(
+                    {
+                        "warning": (
+                            f"eastmoney {category} direct fallback failed: "
+                            f"{fallback_exc}"
+                        )
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return []
 
     sectors = []
     if df is None or df.empty:
@@ -276,8 +332,20 @@ def read_sector_frame(fetcher, category):
 
 def fetch_sectors():
     sectors = []
-    sectors.extend(read_sector_frame(ak.stock_board_industry_name_em, "industry"))
-    sectors.extend(read_sector_frame(ak.stock_board_concept_name_em, "concept"))
+    sectors.extend(
+        read_sector_frame(
+            ak.stock_board_industry_name_em,
+            "industry",
+            "m:90+t:2",
+        )
+    )
+    sectors.extend(
+        read_sector_frame(
+            ak.stock_board_concept_name_em,
+            "concept",
+            "m:90+t:3",
+        )
+    )
     return sectors
 
 
