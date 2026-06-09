@@ -30,7 +30,7 @@ export async function GET(
       postSectors: {
         where: {
           post: { postedAt: { gte: since } },
-          confidence: { gte: 0.35 },
+          confidence: { gte: 0.15 },
         },
         orderBy: { post: { postedAt: "desc" } },
         include: {

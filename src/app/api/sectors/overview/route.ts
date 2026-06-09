@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       postSectors: {
         where: {
           post: { postedAt: { gte: since } },
-          confidence: { gte: 0.35 }, // exclude cross-market noise (0.15-0.18)
+          confidence: { gte: 0.15 }, // include weak cross-market links for trend detection
         },
         include: {
           post: {
@@ -185,6 +185,8 @@ export async function GET(req: NextRequest) {
       description: sector.description,
       mentionCount: postSectors.length,
       uniqueBloggerCount: uniqueBloggers.length,
+      strongMentionCount: postSectors.filter((ps) => Number(ps.confidence) >= 0.7).length,
+      weakMentionCount: postSectors.filter((ps) => Number(ps.confidence) < 0.7).length,
       bullishCount,
       bearishCount,
       bullBearRatio:

@@ -16,6 +16,8 @@ interface SectorSummary {
   description: string;
   mentionCount: number;
   uniqueBloggerCount: number;
+  strongMentionCount: number;
+  weakMentionCount: number;
   bullishCount: number;
   bearishCount: number;
   bullBearRatio: number | null;
@@ -81,31 +83,26 @@ export default function SignalOverview() {
   const MIN_MENTIONS = 3;
   const MIN_BLOGGERS = 2;
 
-  // 最热板块: most mentions meeting quality threshold
-  const hottest =
-    sectors.filter((s) => s.mentionCount >= MIN_MENTIONS).length > 0
-      ? sectors
-          .filter((s) => s.mentionCount >= MIN_MENTIONS)
-          .reduce((a, b) => (a.mentionCount > b.mentionCount ? a : b))
-      : null;
+  // 最热板块: most total mentions
+  const hottest = sectors
+    .sort((a, b) => b.mentionCount - a.mentionCount)[0] ?? null;
 
-  // 最强信号: highest bullish consensus with quality threshold
+  // 最强信号: strongest bullish consensus (uses strong mentions for quality)
   const strongest = sectors
     .filter(
       (s) =>
         s.signalStrength > 55 &&
-        s.mentionCount >= MIN_MENTIONS &&
-        s.uniqueBloggerCount >= MIN_BLOGGERS
+        s.strongMentionCount >= MIN_MENTIONS
     )
     .sort((a, b) => b.signalStrength - a.signalStrength)[0] ?? null;
 
-  // 值得警惕: most bearish sector with quality threshold
+  // 值得警惕: most bearish sector
   const warning =
     sectors
       .filter(
         (s) =>
           s.signalStrength < 45 &&
-          s.mentionCount >= MIN_MENTIONS
+          s.strongMentionCount >= MIN_MENTIONS
       )
       .sort((a, b) => a.signalStrength - b.signalStrength)[0] ?? null;
 
@@ -140,7 +137,7 @@ export default function SignalOverview() {
           emoji="🔥"
           title="最热板块"
           value={hottest?.name ?? "—"}
-          subtitle={hottest ? `${hottest.mentionCount}条 · ${hottest.uniqueBloggerCount}位博主` : undefined}
+          subtitle={hottest ? `${hottest.mentionCount}条提及 · ${hottest.uniqueBloggerCount}位博主${hottest.strongMentionCount > 0 ? ` · ${hottest.strongMentionCount}强关联` : ""}` : undefined}
           onClick={() => hottest && setSelectedSector(hottest)}
         />
         <SummaryCard
@@ -250,13 +247,10 @@ export default function SignalOverview() {
                 {/* Meta row */}
                 <div className="flex items-center gap-4 mt-2 text-xs text-[var(--text-secondary)]">
                   <span>
-                    {sector.mentionCount} 条提及 · {sector.uniqueBloggerCount}{" "}
-                    位博主
-                    {sector.topBloggers.filter((b) => b.score >= 70).length >
-                      0 &&
-                      ` · ${
-                        sector.topBloggers.filter((b) => b.score >= 70).length
-                      } 位高可信`}
+                    {sector.mentionCount} 条提及 ({sector.strongMentionCount} 强关联
+                    {sector.weakMentionCount > 0 && ` + ${sector.weakMentionCount} 弱关联`})
+                    {" · "}
+                    {sector.uniqueBloggerCount} 位博主
                   </span>
                   <span>
                     趋势{" "}
