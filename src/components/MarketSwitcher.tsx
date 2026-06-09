@@ -1,27 +1,25 @@
 "use client";
 
+import { useMarket } from "@/lib/market-context";
 import type { Market } from "@/lib/markets";
-
-interface Props {
-  market: Market;
-  onChange: (market: Market) => void;
-}
 
 const markets: { key: Market; label: string }[] = [
   { key: "US", label: "美股" },
   { key: "CN", label: "A股" },
 ];
 
-export default function MarketSwitcher({ market, onChange }: Props) {
+export default function MarketSwitcher() {
+  const { market, setMarket } = useMarket();
+
   return (
-    <div className="inline-flex rounded-lg border border-[var(--border-soft)] bg-[var(--card-bg)] p-1">
+    <div className="inline-flex rounded-lg border border-[var(--border-soft)] bg-[var(--card-bg)] p-1 shadow-sm">
       {markets.map((item) => (
         <button
           key={item.key}
-          onClick={() => onChange(item.key)}
-          className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+          onClick={() => setMarket(item.key)}
+          className={`px-4 py-2 text-sm rounded-md transition-all duration-200 font-medium ${
             market === item.key
-              ? "bg-[var(--text-primary)] text-white"
+              ? "bg-[var(--text-primary)] text-white shadow-sm"
               : "text-[var(--text-secondary)] hover:bg-[var(--border-soft)]/60"
           }`}
         >

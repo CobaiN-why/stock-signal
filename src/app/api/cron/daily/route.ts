@@ -8,6 +8,8 @@ import { generateStockAnalysis } from "@/lib/kimi";
 import { buildStockResponse } from "@/lib/stock-response";
 import { normalizeMarket } from "@/lib/markets";
 import { findPriceSyncStocks } from "@/lib/price-sync-selection";
+import { backtestAllUnresearched } from "@/lib/backtest";
+import { recalculateAllCredibility } from "@/lib/credibility";
 
 const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -217,6 +219,30 @@ async function runDailyJob() {
   } catch (err) {
     console.error("prewarm-cache step failed:", err);
     results.prewarmCache = { error: String(err) };
+  }
+
+  // --- Step 7: Backtest predictions ---
+  try {
+    // Backtest CN market predictions that are 7+ days old
+    const cnResult = await backtestAllUnresearched("CN", 7);
+    const usResult = await backtestAllUnresearched("US", 7);
+    results.backtestOpinions = {
+      cn: cnResult,
+      us: usResult,
+    };
+  } catch (err) {
+    console.error("backtest-opinions step failed:", err);
+    results.backtestOpinions = { error: String(err) };
+  }
+
+  // --- Step 8: Recalculate credibility ---
+  try {
+    const cnCount = await recalculateAllCredibility("CN");
+    const usCount = await recalculateAllCredibility("US");
+    results.calculateCredibility = { cnUpdated: cnCount, usUpdated: usCount };
+  } catch (err) {
+    console.error("calculate-credibility step failed:", err);
+    results.calculateCredibility = { error: String(err) };
   }
 
   return results;
