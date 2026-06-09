@@ -36,7 +36,7 @@ except Exception:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fetch China market data via AkShare")
-    parser.add_argument("command", choices=["bars", "quote", "profile", "sectors", "etfs"])
+    parser.add_argument("command", choices=["bars", "quote", "profile", "sectors", "etfs", "flow"])
     parser.add_argument("--symbol")
     parser.add_argument("--asset-type", choices=["STOCK", "ETF"], default="STOCK")
     parser.add_argument("--from-date")
@@ -406,11 +406,50 @@ def fetch_etfs():
     return etfs
 
 
+def fetch_flow():
+    """Return sector fund flow rankings (industry + concept)."""
+    result = {"industry": [], "concept": [], "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+    # Industry flow
+    try:
+        df_industry = ak.stock_fund_flow_industry()
+        for _, row in df_industry.iterrows():
+            result["industry"].append({
+                "name": str(row.get("行业", "")).strip(),
+                "change_pct": float(row.get("行业-涨跌幅", 0) or 0),
+                "inflow": float(row.get("流入资金", 0) or 0),
+                "outflow": float(row.get("流出资金", 0) or 0),
+                "net_flow": float(row.get("净额", 0) or 0),
+                "company_count": int(row.get("公司家数", 0) or 0),
+                "lead_stock": str(row.get("领涨股", "")).strip(),
+            })
+    except Exception as exc:
+        result["industry_error"] = str(exc)
+
+    # Concept flow
+    try:
+        df_concept = ak.stock_fund_flow_concept()
+        for _, row in df_concept.iterrows():
+            result["concept"].append({
+                "name": str(row.get("行业", "")).strip(),
+                "change_pct": float(row.get("行业-涨跌幅", 0) or 0),
+                "inflow": float(row.get("流入资金", 0) or 0),
+                "outflow": float(row.get("流出资金", 0) or 0),
+                "net_flow": float(row.get("净额", 0) or 0),
+                "company_count": int(row.get("公司家数", 0) or 0),
+                "lead_stock": str(row.get("领涨股", "")).strip(),
+            })
+    except Exception as exc:
+        result["concept_error"] = str(exc)
+
+    return result
+
+
 def main():
     args = parse_args()
     symbol = args.symbol.strip() if args.symbol else ""
 
-    if args.command not in ("sectors", "etfs") and not symbol:
+    if args.command not in ("sectors", "etfs", "flow") and not symbol:
         fail("--symbol is required for bars, quote, and profile")
 
     if args.command == "bars":
@@ -421,6 +460,8 @@ def main():
         payload = fetch_sectors()
     elif args.command == "etfs":
         payload = fetch_etfs()
+    elif args.command == "flow":
+        payload = fetch_flow()
     else:
         payload = fetch_profile(symbol, args.asset_type)
 

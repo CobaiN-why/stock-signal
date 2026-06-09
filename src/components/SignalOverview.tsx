@@ -7,6 +7,7 @@ import CredibilityBadge from "./CredibilityBadge";
 import AvatarWall from "./AvatarWall";
 import MiniSparkline from "./MiniSparkline";
 import SectorDetail from "./SectorDetail";
+import FundFlowPanel from "./FundFlowPanel";
 
 interface SectorSummary {
   id: string;
@@ -167,6 +168,11 @@ export default function SignalOverview() {
             }
           }}
         />
+      </div>
+
+      {/* Fund flow panel */}
+      <div className="mb-8">
+        <FundFlowPanel />
       </div>
 
       {/* Sector signal list */}

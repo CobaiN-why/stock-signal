@@ -1,4 +1,4 @@
-import type { PostSource, SourcePost } from "@/lib/social/types";
+import type { PostSource, RecommendedBlogger, SourcePost } from "@/lib/social/types";
 
 export const twitterPostSource: PostSource = {
   name: "twitter",
@@ -30,6 +30,48 @@ export const twitterPostSource: PostSource = {
         text: t.text,
         createdAt: t.createdAt ?? t.created_at ?? "",
         url: `https://x.com/${username}/status/${t.id}`,
+      })
+    );
+  },
+
+  async searchUsers(query: string): Promise<RecommendedBlogger[]> {
+    const apiKey = process.env.TWITTER_API_KEY;
+    if (!apiKey) throw new Error("TWITTER_API_KEY not set");
+
+    // Use TwitterAPI.io user search
+    const res = await fetch(
+      `https://api.twitterapi.io/twitter/user/search?query=${encodeURIComponent(query)}`,
+      {
+        headers: { "x-api-key": apiKey },
+      }
+    );
+
+    if (!res.ok) {
+      console.error(`Twitter user search error: ${res.status}`);
+      return [];
+    }
+
+    const data = await res.json();
+    const users = data.data?.users ?? data.users ?? [];
+    return users.map(
+      (u: {
+        userName?: string;
+        name?: string;
+        description?: string;
+        followers?: number;
+        following?: number;
+        tweets?: number;
+        avatar?: string;
+        verified?: boolean;
+      }) => ({
+        xUsername: u.userName ?? "",
+        displayName: u.name ?? "",
+        description: u.description ?? "",
+        followersCount: u.followers ?? 0,
+        followingCount: u.following ?? 0,
+        tweetCount: u.tweets ?? 0,
+        avatarUrl: u.avatar ?? null,
+        verified: u.verified ?? false,
       })
     );
   },

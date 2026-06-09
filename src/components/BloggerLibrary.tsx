@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useMarket } from "@/lib/market-context";
 import CredibilityBadge from "./CredibilityBadge";
 import BloggerDetail from "./BloggerDetail";
+import BloggerRecommend from "./BloggerRecommend";
 
 interface BloggerSummary {
   id: string;
@@ -106,6 +107,15 @@ export default function BloggerLibrary() {
         {bloggers.filter((b) => b.credibility.label === "高").length} 位高可信
         · 筛选显示 {filtered.length} 位
       </div>
+
+      {/* Recommended bloggers */}
+      <BloggerRecommend onAdded={() => {
+        // Refresh the list after adding a blogger
+        fetch(`/api/bloggers/with-credibility?market=${market}`)
+          .then((r) => r.json())
+          .then((data) => setBloggers(data ?? []))
+          .catch(console.error);
+      }} />
 
       {/* Blogger list */}
       <div className="space-y-3">
