@@ -234,9 +234,14 @@ export default function BloggerRecommend({ onAdded }: Props) {
                             {blogger.market}
                           </span>
                         </div>
-                        <p className="text-xs text-[var(--text-muted)] font-mono">
-                          @{blogger.xUsername}
-                        </p>
+                        <a
+                          href={`https://x.com/${blogger.xUsername}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-[var(--accent)] hover:underline font-mono"
+                        >
+                          @{blogger.xUsername} ↗
+                        </a>
                         <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-2">
                           {blogger.description}
                         </p>
