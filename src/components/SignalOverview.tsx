@@ -77,23 +77,37 @@ export default function SignalOverview() {
     );
   }
 
-  // Find hottest, strongest, warning signals
+  // Quality threshold: require enough data points for signal cards
+  const MIN_MENTIONS = 3;
+  const MIN_BLOGGERS = 2;
+
+  // 最热板块: most mentions meeting quality threshold
   const hottest =
-    sectors.length > 0
-      ? sectors.reduce((a, b) =>
-          a.mentionCount > b.mentionCount ? a : b
-        )
+    sectors.filter((s) => s.mentionCount >= MIN_MENTIONS).length > 0
+      ? sectors
+          .filter((s) => s.mentionCount >= MIN_MENTIONS)
+          .reduce((a, b) => (a.mentionCount > b.mentionCount ? a : b))
       : null;
+
+  // 最强信号: highest bullish consensus with quality threshold
   const strongest = sectors
-    .filter((s) => s.signalStrength !== 50)
-    .sort(
-      (a, b) =>
-        Math.abs(b.signalStrength - 50) - Math.abs(a.signalStrength - 50)
-    )[0] ?? null;
+    .filter(
+      (s) =>
+        s.signalStrength > 55 &&
+        s.mentionCount >= MIN_MENTIONS &&
+        s.uniqueBloggerCount >= MIN_BLOGGERS
+    )
+    .sort((a, b) => b.signalStrength - a.signalStrength)[0] ?? null;
+
+  // 值得警惕: most bearish sector with quality threshold
   const warning =
-    sectors.filter((s) => s.trend === "down").length > 0
-      ? sectors.find((s) => s.trend === "down") ?? null
-      : null;
+    sectors
+      .filter(
+        (s) =>
+          s.signalStrength < 45 &&
+          s.mentionCount >= MIN_MENTIONS
+      )
+      .sort((a, b) => a.signalStrength - b.signalStrength)[0] ?? null;
 
   return (
     <div>
