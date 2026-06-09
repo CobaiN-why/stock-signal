@@ -12,6 +12,9 @@ interface Stock {
   companyName: string;
   latestPrice: string | null;
   lastMentionedAt: string | null;
+  mentionCount: number;
+  directMentionCount: number;
+  sectorMentionCount: number;
   _count: { postStocks: number };
 }
 
@@ -104,10 +107,20 @@ export default function StockList({ market, selectedTicker, onSelect }: Props) {
                   </span>
                 )}
               </div>
+              {s.companyName && (
+                <div className="text-xs text-[var(--text-secondary)] truncate mt-0.5">
+                  {s.companyName}
+                </div>
+              )}
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xs font-bold text-[var(--accent-green)]">
-                  {s._count.postStocks} 次提及
+                  {s.mentionCount ?? s._count.postStocks} 次提及
                 </span>
+                {s.assetType === "ETF" && s.sectorMentionCount > 0 && (
+                  <span className="text-xs text-[var(--text-secondary)]">
+                    板块{s.sectorMentionCount}
+                  </span>
+                )}
                 {s.lastMentionedAt && (
                   <span className="text-xs text-[var(--text-secondary)]">
                     最新{" "}

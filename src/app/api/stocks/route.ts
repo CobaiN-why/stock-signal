@@ -17,6 +17,18 @@ export async function GET(req: NextRequest) {
         orderBy: { post: { postedAt: "desc" } },
         take: 1,
       },
+      sector: {
+        select: {
+          _count: { select: { postSectors: true } },
+          postSectors: {
+            select: {
+              post: { select: { postedAt: true } },
+            },
+            orderBy: { post: { postedAt: "desc" } },
+            take: 1,
+          },
+        },
+      },
     },
     orderBy: [
       { assetType: "asc" },
@@ -32,19 +44,37 @@ export async function GET(req: NextRequest) {
     filtered = stocks.filter((s) => s._count.postStocks >= 3);
   }
 
-  const result = filtered.map((s) => ({
-    id: s.id,
-    ticker: s.ticker,
-    market: s.market,
-    assetType: s.assetType,
-    currency: s.currency,
-    companyName: s.companyName,
-    latestPrice: s.latestPrice,
-    priceUpdatedAt: s.priceUpdatedAt,
-    createdAt: s.createdAt,
-    lastMentionedAt: s.postStocks[0]?.post.postedAt ?? null,
-    _count: s._count,
-  }));
+  const result = filtered.map((s) => {
+    const sectorMentionCount =
+      s.assetType === "ETF" ? (s.sector?._count.postSectors ?? 0) : 0;
+    const directMentionCount = s._count.postStocks;
+    const totalMentionCount = directMentionCount + sectorMentionCount;
+    const latestDirect = s.postStocks[0]?.post.postedAt ?? null;
+    const latestSector = s.sector?.postSectors[0]?.post.postedAt ?? null;
+    const lastMentionedAt =
+      latestDirect && latestSector
+        ? latestDirect > latestSector
+          ? latestDirect
+          : latestSector
+        : latestDirect ?? latestSector;
+
+    return {
+      id: s.id,
+      ticker: s.ticker,
+      market: s.market,
+      assetType: s.assetType,
+      currency: s.currency,
+      companyName: s.companyName,
+      latestPrice: s.latestPrice,
+      priceUpdatedAt: s.priceUpdatedAt,
+      createdAt: s.createdAt,
+      lastMentionedAt,
+      mentionCount: totalMentionCount,
+      directMentionCount,
+      sectorMentionCount,
+      _count: s._count,
+    };
+  });
 
   return NextResponse.json(result);
 }
