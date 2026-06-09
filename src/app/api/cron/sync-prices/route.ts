@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { fetchDailyBars } from "@/lib/market-data";
 import { normalizeMarket } from "@/lib/markets";
-import { buildPriceSyncStockWhere } from "@/lib/price-sync-selection";
+import { findPriceSyncStocks } from "@/lib/price-sync-selection";
 
 export async function POST(req: NextRequest) {
   const authError = verifyCronAuth(req);
@@ -15,12 +15,10 @@ export async function POST(req: NextRequest) {
   const includeSeeded = req.nextUrl.searchParams.get("includeSeeded") === "true";
   const market = marketParam ? normalizeMarket(marketParam) : null;
 
-  const stocks = await prisma.stock.findMany({
-    where: buildPriceSyncStockWhere({
-      market,
-      ticker: tickerParam,
-      includeSeeded,
-    }),
+  const stocks = await findPriceSyncStocks({
+    market,
+    ticker: tickerParam,
+    includeSeeded,
   });
 
   let synced = 0;

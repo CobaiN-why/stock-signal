@@ -35,6 +35,27 @@ export async function buildStockResponse(
   if (!stock) return null;
 
   const profile = stock.profileData as StockProfile | null;
+  const mappedSectorEtfs =
+    stock.assetType === "ETF"
+      ? await prisma.sectorEtf.findMany({
+          where: {
+            market: stock.market,
+            ticker: stock.ticker,
+          },
+          orderBy: { rank: "asc" },
+          include: {
+            sector: {
+              include: {
+                etfs: { orderBy: { rank: "asc" } },
+                postSectors: {
+                  include: { post: { include: { blogger: true } } },
+                  orderBy: { post: { postedAt: "desc" } },
+                },
+              },
+            },
+          },
+        })
+      : [];
 
   const directMentions = stock.postStocks.map((ps) => ({
     id: ps.id,
@@ -58,10 +79,25 @@ export async function buildStockResponse(
   }));
 
   const directPostIds = new Set(directMentions.map((m) => m.post.id));
+  const sectorSources = new Map<
+    string,
+    NonNullable<typeof stock.sector>
+  >();
+  if (stock.sector) sectorSources.set(stock.sector.slug, stock.sector);
+  for (const mapped of mappedSectorEtfs) {
+    sectorSources.set(mapped.sector.slug, mapped.sector);
+  }
+  const seenSectorMentionIds = new Set<string>();
   const sectorMentions =
-    stock.assetType === "ETF" && stock.sector
-      ? stock.sector.postSectors
+    stock.assetType === "ETF"
+      ? Array.from(sectorSources.values())
+          .flatMap((sector) => sector.postSectors)
           .filter((ps) => !directPostIds.has(ps.post.id))
+          .filter((ps) => {
+            if (seenSectorMentionIds.has(ps.id)) return false;
+            seenSectorMentionIds.add(ps.id);
+            return true;
+          })
           .map((ps) => ({
             id: `sector:${ps.id}`,
             mentionType: "sector",
@@ -84,6 +120,7 @@ export async function buildStockResponse(
             },
           }))
       : [];
+  const primarySector = Array.from(sectorSources.values())[0] ?? null;
 
   return {
     schemaVersion: STOCK_RESPONSE_SCHEMA_VERSION,
@@ -95,12 +132,12 @@ export async function buildStockResponse(
     latestPrice: stock.latestPrice,
     profile,
     analysis: stock.analysis?.content ?? null,
-    sector: stock.sector
+    sector: primarySector
       ? {
-          slug: stock.sector.slug,
-          name: stock.sector.name,
-          description: stock.sector.description,
-          etfs: stock.sector.etfs.map((etf) => ({
+          slug: primarySector.slug,
+          name: primarySector.name,
+          description: primarySector.description,
+          etfs: primarySector.etfs.map((etf) => ({
             ticker: etf.ticker,
             market: etf.market,
             name: etf.name,

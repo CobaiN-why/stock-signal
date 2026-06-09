@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "reprocess:posts": "node --import dotenv/config --import tsx scripts/reprocess-posts.ts",
+    "sync:cn-sector-etfs": "node --import dotenv/config --import tsx scripts/sync-cn-sector-etfs.ts",
     "sync:cn-sectors": "node --import dotenv/config --import tsx scripts/sync-cn-sectors.ts",
     "test:ai": "node --import dotenv/config --import tsx scripts/test-ai.ts",
     "postinstall": "prisma generate"

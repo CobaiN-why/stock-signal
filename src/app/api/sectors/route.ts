@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
         slug: sector.slug,
         name: sector.name,
         description: sector.description,
-        mentionCount: sector._count.postSectors,
+        mentionCount: sector.postSectors.length,
         directCount,
         inferredCount,
         bullishCount,

@@ -36,7 +36,7 @@ except Exception:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fetch China market data via AkShare")
-    parser.add_argument("command", choices=["bars", "quote", "profile", "sectors"])
+    parser.add_argument("command", choices=["bars", "quote", "profile", "sectors", "etfs"])
     parser.add_argument("--symbol")
     parser.add_argument("--asset-type", choices=["STOCK", "ETF"], default="STOCK")
     parser.add_argument("--from-date")
@@ -281,11 +281,59 @@ def fetch_sectors():
     return sectors
 
 
+def parse_number(value):
+    if value is None:
+        return None
+    try:
+        text = str(value).replace(",", "").strip()
+        if not text or text in ("-", "nan", "None"):
+            return None
+        return float(text)
+    except Exception:
+        return None
+
+
+def first_number(row, keys):
+    for key in keys:
+        value = parse_number(row.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def fetch_etfs():
+    df = ak.fund_etf_spot_em()
+    if df is None or df.empty:
+        return []
+
+    etfs = []
+    for _, row in df.iterrows():
+        code = str(row.get("代码", "")).strip()
+        name = str(row.get("名称", "")).strip()
+        if not code or not name:
+            continue
+        amount = first_number(row, ["成交额", "成交额(元)", "成交额(万)", "金额"])
+        volume = first_number(row, ["成交量", "成交量(手)", "成交量(股)"])
+        market_value = first_number(row, ["总市值", "流通市值", "基金规模", "规模"])
+        etfs.append(
+            {
+                "ticker": code,
+                "name": name,
+                "latestPrice": first_number(row, ["最新价", "最新净值"]),
+                "amount": amount,
+                "volume": volume,
+                "marketValue": market_value,
+                "rankValue": market_value or amount or volume or 0,
+            }
+        )
+    return etfs
+
+
 def main():
     args = parse_args()
     symbol = args.symbol.strip() if args.symbol else ""
 
-    if args.command != "sectors" and not symbol:
+    if args.command not in ("sectors", "etfs") and not symbol:
         fail("--symbol is required for bars, quote, and profile")
 
     if args.command == "bars":
@@ -294,6 +342,8 @@ def main():
         payload = {"price": fetch_quote(symbol, args.asset_type)}
     elif args.command == "sectors":
         payload = fetch_sectors()
+    elif args.command == "etfs":
+        payload = fetch_etfs()
     else:
         payload = fetch_profile(symbol, args.asset_type)
 

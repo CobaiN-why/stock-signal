@@ -7,7 +7,7 @@ import { fetchDailyBars, fetchLatestPrice, fetchStockProfile } from "@/lib/marke
 import { generateStockAnalysis } from "@/lib/kimi";
 import { buildStockResponse } from "@/lib/stock-response";
 import { normalizeMarket } from "@/lib/markets";
-import { buildPriceSyncStockWhere } from "@/lib/price-sync-selection";
+import { findPriceSyncStocks } from "@/lib/price-sync-selection";
 
 const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -30,9 +30,7 @@ async function runDailyJob() {
 
   // --- Step 2: Sync prices ---
   try {
-    const stocks = await prisma.stock.findMany({
-      where: buildPriceSyncStockWhere(),
-    });
+    const stocks = await findPriceSyncStocks();
     let synced = 0;
 
     for (const stock of stocks) {
