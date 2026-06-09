@@ -1,3 +1,9 @@
+/**
+ * Individual stock sentiment detection via rules + AI fallback.
+ *
+ * For sector-level sentiment, see analyzeSectorsAndSentiment() in sector-ai.ts
+ * which handles sector sentiment as part of the unified AI analysis pipeline.
+ */
 import { getAiFallbackModel, getAiProvider } from "@/lib/ai";
 
 type Sentiment = "bullish" | "bearish";
@@ -206,7 +212,7 @@ export async function detectSentiment(
   try {
     const systemPrompt = `You are a financial market sentiment classifier. Your task is to determine whether the author of a social media post is BULLISH or BEARISH on a specific target.
 
-The target can be a stock ticker, ETF, sector, industry, investment theme, or market direction.
+The target is usually a stock ticker or ETF (not a sector — sector sentiment is handled elsewhere).
 
 DEFINITIONS:
 - BULLISH: The author expects the target to rise, outperform, attract capital, improve fundamentally, or become a promising market direction. This includes: recommending to buy, holding long exposure, setting upside targets, celebrating gains, defending a thesis, calling it a main theme, saying fundamentals are improving, or saying the target benefits from a trend.

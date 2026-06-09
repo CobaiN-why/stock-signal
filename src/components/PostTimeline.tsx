@@ -3,6 +3,86 @@
 import { useEffect, useState, useRef } from "react";
 import type { Market } from "@/lib/markets";
 
+// Regex patterns for detecting stock codes in post content
+const CN_CODE_REGEX = /(?:^|[^\d])((?:00|15|30|51|58|60|68)\d{4})(?=$|[^\d])/g;
+const US_CASHTAG_REGEX = /\$([A-Z]{1,5})\b/g;
+
+function highlightStockContent(
+  content: string,
+  stockTickers: { ticker: string; market: string }[]
+): React.ReactNode[] {
+  if (!content) return [content];
+
+  // Build a set of tickers to highlight
+  const tickerSet = new Set(stockTickers.map((s) => s.ticker.toUpperCase()));
+
+  // Collect all match positions
+  interface MatchPos {
+    start: number;
+    end: number;
+    ticker: string;
+    market: string;
+  }
+  const matches: MatchPos[] = [];
+
+  // Find CN 6-digit codes
+  let match: RegExpExecArray | null;
+  CN_CODE_REGEX.lastIndex = 0;
+  while ((match = CN_CODE_REGEX.exec(content)) !== null) {
+    const code = match[1];
+    if (tickerSet.has(code)) {
+      // Adjust start to skip the non-digit prefix character
+      const start = match.index + match[0].indexOf(code);
+      matches.push({ start, end: start + code.length, ticker: code, market: "CN" });
+    }
+  }
+
+  // Find US cashtags $TICKER
+  US_CASHTAG_REGEX.lastIndex = 0;
+  while ((match = US_CASHTAG_REGEX.exec(content)) !== null) {
+    const ticker = match[1].toUpperCase();
+    if (tickerSet.has(ticker)) {
+      matches.push({ start: match.index, end: match.index + match[0].length, ticker, market: "US" });
+    }
+  }
+
+  // Sort by position and deduplicate overlapping matches
+  matches.sort((a, b) => a.start - b.start);
+  const filtered: MatchPos[] = [];
+  for (const m of matches) {
+    const last = filtered[filtered.length - 1];
+    if (last && m.start < last.end) continue; // skip overlapping
+    filtered.push(m);
+  }
+
+  if (filtered.length === 0) return [content];
+
+  // Split content and wrap matches
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  for (let i = 0; i < filtered.length; i++) {
+    const m = filtered[i];
+    if (m.start > cursor) {
+      parts.push(content.slice(cursor, m.start));
+    }
+    parts.push(
+      <mark
+        key={`highlight-${i}`}
+        className="bg-[var(--accent)]/15 text-[var(--accent)] rounded-sm px-0.5 font-mono text-xs"
+        title={`${m.market === "US" ? "美股" : "A股"}: ${m.ticker}`}
+      >
+        {content.slice(m.start, m.end)}
+      </mark>
+    );
+    cursor = m.end;
+  }
+  if (cursor < content.length) {
+    parts.push(content.slice(cursor));
+  }
+
+  return parts;
+}
+
 interface Post {
   id: string;
   content: string;
@@ -188,7 +268,13 @@ export default function PostTimeline({
               </div>
             </div>
             <p className="text-sm leading-relaxed whitespace-pre-wrap">
-              {post.content}
+              {highlightStockContent(
+                post.content,
+                stockMappings(post).map((s) => ({
+                  ticker: s.ticker,
+                  market: s.market,
+                }))
+              )}
             </p>
             <a
               href={post.url}

@@ -1,15 +1,12 @@
 import { prisma } from "../src/lib/db.js";
 import { Prisma } from "../src/generated/prisma/client.js";
-import {
-  identifySectorsAcrossMarkets,
-  type SectorMention,
-} from "../src/lib/sector-identifier.js";
+import type { SectorMention } from "../src/lib/sector-identifier.js";
 import {
   ensureStockExists,
   identifyStocksAcrossMarkets,
   type StockMention,
 } from "../src/lib/stock-identifier.js";
-import { expandSectorMentionsWithLinks } from "../src/lib/sector-links.js";
+import { analyzeSectorsAndSentiment } from "../src/lib/sector-ai.js";
 import { inferSectorsFromStockMention } from "../src/lib/stock-sector-mapping.js";
 import {
   detectSentiment,
@@ -205,26 +202,47 @@ async function main() {
     stats.scanned++;
 
     try {
-      const [stockMatches, directSectors] = await Promise.all([
-        identifyStocksAcrossMarkets(post.content),
-        identifySectorsAcrossMarkets(post.content),
-      ]);
+      const stockMatches = await identifyStocksAcrossMarkets(post.content);
 
       const expectedStockIds = new Set<string>();
       const sectorById = new Map<string, SectorMention>();
 
-      for (const sector of directSectors) {
-        sectorById.set(sector.sectorId, sector);
+      // AI unified analysis (skip for dry-run with rules-only)
+      const aiResults =
+        options.rulesOnly || options.dryRun
+          ? []
+          : await analyzeSectorsAndSentiment(post.content, stockMatches);
+
+      const aiByStock = new Map<
+        string,
+        Awaited<ReturnType<typeof analyzeSectorsAndSentiment>>[number]
+      >();
+      const aiDirectSectors = new Map<
+        string,
+        Awaited<ReturnType<typeof analyzeSectorsAndSentiment>>[number]
+      >();
+      for (const r of aiResults) {
+        if (r.ticker && r.market) {
+          aiByStock.set(`${r.market}:${r.ticker}`, r);
+        } else {
+          const existing = aiDirectSectors.get(r.sectorSlug);
+          if (!existing || existing.confidence < r.confidence) {
+            aiDirectSectors.set(r.sectorSlug, r);
+          }
+        }
       }
 
       for (const mention of stockMatches) {
         const stockId = await resolveStockId(mention, options.dryRun);
+        const stockKey = `${mention.market}:${mention.ticker}`;
+        const aiResult = aiByStock.get(stockKey);
 
-        const sentiment = await detectPostSentiment(
-          post.content,
-          mention.ticker,
-          options.rulesOnly || options.dryRun
-        );
+        const sentiment = aiResult?.stockSentiment
+          ?? await detectPostSentiment(
+              post.content,
+              mention.ticker,
+              options.rulesOnly || options.dryRun
+            );
 
         if (stockId) {
           expectedStockIds.add(stockId);
@@ -234,34 +252,64 @@ async function main() {
         if (!options.dryRun && stockId) {
           await prisma.postStock.upsert({
             where: { postId_stockId: { postId: post.id, stockId } },
-            update: {
-              mentionType: mention.type,
-              sentiment,
-            },
-            create: {
-              postId: post.id,
-              stockId,
-              mentionType: mention.type,
-              sentiment,
-            },
+            update: { mentionType: mention.type, sentiment },
+            create: { postId: post.id, stockId, mentionType: mention.type, sentiment },
           });
         }
 
-        if (stockId) {
+        if (stockId && aiResult) {
+          // AI sector mapping
+          const sector = await prisma.sector.findUnique({
+            where: { market_slug: { market: "CN", slug: aiResult.sectorSlug } },
+            select: { id: true, name: true },
+          });
+          if (sector && !sectorById.has(sector.id)) {
+            sectorById.set(sector.id, {
+              sectorId: sector.id,
+              market: "CN",
+              slug: aiResult.sectorSlug,
+              name: aiResult.sectorName,
+              evidence: aiResult.evidence,
+              confidence: aiResult.confidence,
+              sentiment: aiResult.sectorSentiment,
+              sentimentTarget: mention.ticker,
+            } as SectorMention);
+          }
+        } else if (stockId && !aiResult) {
+          // DB fallback for stocks AI didn't map
           const inferredSectors = await inferSectorsFromStockMention(
             stockId,
             mention.ticker,
             mention.market,
             mention.assetType
           );
-          for (const inferredSector of inferredSectors) {
-            if (!sectorById.has(inferredSector.sectorId)) {
-              sectorById.set(inferredSector.sectorId, inferredSector);
+          for (const s of inferredSectors) {
+            if (!sectorById.has(s.sectorId)) {
+              sectorById.set(s.sectorId, s);
             }
           }
         }
 
         stats.stockMentions++;
+      }
+
+      // Direct sector mentions from AI (no ticker)
+      for (const [slug, aiResult] of aiDirectSectors) {
+        const sector = await prisma.sector.findUnique({
+          where: { market_slug: { market: "CN", slug } },
+          select: { id: true, name: true },
+        });
+        if (sector && !sectorById.has(sector.id)) {
+          sectorById.set(sector.id, {
+            sectorId: sector.id,
+            market: "CN",
+            slug,
+            name: aiResult.sectorName,
+            evidence: aiResult.evidence,
+            confidence: aiResult.confidence,
+            sentiment: aiResult.sectorSentiment,
+          } as SectorMention);
+        }
       }
 
       if (!options.dryRun && options.prune) {
@@ -276,11 +324,8 @@ async function main() {
       }
 
       const expectedSectorIds = new Set<string>();
-      const expandedSectorMentions = await expandSectorMentionsWithLinks(
-        sectorById.values()
-      );
 
-      for (const sector of expandedSectorMentions) {
+      for (const sector of sectorById.values()) {
         expectedSectorIds.add(sector.sectorId);
         affectedSectorIds.add(sector.sectorId);
 
@@ -333,7 +378,7 @@ async function main() {
 
       console.log(
         `✓ ${post.postedAt.toISOString().slice(0, 10)} @${post.blogger.xUsername}` +
-          ` stocks=${stockMatches.length} sectors=${expandedSectorMentions.length}`
+          ` stocks=${stockMatches.length} sectors=${sectorById.size}`
       );
     } catch (err) {
       stats.errors++;

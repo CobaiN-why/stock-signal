@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { detectSentiment } from "@/lib/sentiment";
-import {
-  identifySectorsAcrossMarkets,
-  type SectorMention,
-} from "@/lib/sector-identifier";
+import { analyzeSectorsAndSentiment } from "@/lib/sector-ai";
+import type { SectorMention } from "@/lib/sector-identifier";
 import {
   ensureStockExists,
   identifyStocksAcrossMarkets,
 } from "@/lib/stock-identifier";
-import { expandSectorMentionsWithLinks } from "@/lib/sector-links";
 import { inferSectorsFromStockMention } from "@/lib/stock-sector-mapping";
 import { getPostSource } from "@/lib/social";
 
@@ -73,12 +70,11 @@ export async function POST(req: NextRequest) {
           });
           if (exists) continue;
 
-          const [stockMatches, directSectorMatches] = await Promise.all([
-            identifyStocksAcrossMarkets(sourcePost.text),
-            identifySectorsAcrossMarkets(sourcePost.text),
-          ]);
+          const stockMatches = await identifyStocksAcrossMarkets(sourcePost.text);
+          if (stockMatches.length === 0) continue;
 
-          if (stockMatches.length === 0 && directSectorMatches.length === 0) continue;
+          // AI unified analysis
+          const aiResults = await analyzeSectorsAndSentiment(sourcePost.text, stockMatches);
 
           const post = await prisma.post.create({
             data: {
@@ -90,49 +86,102 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          const sectorMentionsById = new Map<string, SectorMention>();
-          for (const sector of directSectorMatches) {
-            sectorMentionsById.set(sector.sectorId, sector);
+          const aiByStock = new Map<string, (typeof aiResults)[number]>();
+          const aiDirectSectors = new Map<string, (typeof aiResults)[number]>();
+          for (const r of aiResults) {
+            if (r.ticker && r.market) {
+              aiByStock.set(`${r.market}:${r.ticker}`, r);
+            } else {
+              const existing = aiDirectSectors.get(r.sectorSlug);
+              if (!existing || existing.confidence < r.confidence) {
+                aiDirectSectors.set(r.sectorSlug, r);
+              }
+            }
           }
 
+          const sectorMentionsById = new Map<string, SectorMention>();
+
           for (const mention of stockMatches) {
+            const stockKey = `${mention.market}:${mention.ticker}`;
+            const aiResult = aiByStock.get(stockKey);
+            const sentiment = aiResult?.stockSentiment
+              ?? await detectSentiment(sourcePost.text, mention.ticker);
+
             const { id: stockId } = await ensureStockExists(
               mention.ticker,
               mention.market,
               mention.assetType
             );
-            const sentiment = await detectSentiment(sourcePost.text, mention.ticker);
             await prisma.postStock.create({
               data: { postId: post.id, stockId, mentionType: mention.type, sentiment },
             });
 
-            const inferredSectors = await inferSectorsFromStockMention(
-              stockId,
-              mention.ticker,
-              mention.market,
-              mention.assetType
-            );
-            for (const sector of inferredSectors) {
-              if (!sectorMentionsById.has(sector.sectorId)) {
-                sectorMentionsById.set(sector.sectorId, sector);
+            // AI sector mapping
+            if (aiResult) {
+              const sector = await prisma.sector.findUnique({
+                where: { market_slug: { market: "CN", slug: aiResult.sectorSlug } },
+                select: { id: true, name: true },
+              });
+              if (sector && !sectorMentionsById.has(sector.id)) {
+                sectorMentionsById.set(sector.id, {
+                  sectorId: sector.id,
+                  market: "CN",
+                  slug: aiResult.sectorSlug,
+                  name: aiResult.sectorName,
+                  evidence: aiResult.evidence,
+                  confidence: aiResult.confidence,
+                  sentiment: aiResult.sectorSentiment,
+                  sentimentTarget: mention.ticker,
+                } as SectorMention);
+              }
+            } else {
+              // DB fallback
+              const dbSectors = await inferSectorsFromStockMention(
+                stockId, mention.ticker, mention.market, mention.assetType
+              );
+              for (const s of dbSectors) {
+                if (!sectorMentionsById.has(s.sectorId)) {
+                  sectorMentionsById.set(s.sectorId, s);
+                }
               }
             }
             grandStock++;
           }
 
-          const expanded = await expandSectorMentionsWithLinks(sectorMentionsById.values());
-          for (const sector of expanded) {
+          // Direct sector mentions from AI
+          for (const [slug, aiResult] of aiDirectSectors) {
+            const sector = await prisma.sector.findUnique({
+              where: { market_slug: { market: "CN", slug } },
+              select: { id: true, name: true },
+            });
+            if (sector && !sectorMentionsById.has(sector.id)) {
+              sectorMentionsById.set(sector.id, {
+                sectorId: sector.id,
+                market: "CN",
+                slug,
+                name: aiResult.sectorName,
+                evidence: aiResult.evidence,
+                confidence: aiResult.confidence,
+                sentiment: aiResult.sectorSentiment,
+              } as SectorMention);
+            }
+          }
+
+          // Write PostSectors
+          for (const [_, sector] of sectorMentionsById) {
             const sentiment =
-              "sentiment" in sector
-                ? sector.sentiment ?? null
-                : await detectSentiment(
-                    sourcePost.text,
-                    sector.sentimentTarget ?? sector.name
-                  );
+              sector.sentiment ??
+              await detectSentiment(
+                sourcePost.text,
+                sector.sentimentTarget ?? sector.name
+              );
             await prisma.postSector.create({
               data: {
-                postId: post.id, sectorId: sector.sectorId,
-                confidence: sector.confidence, evidence: sector.evidence, sentiment,
+                postId: post.id,
+                sectorId: sector.sectorId,
+                confidence: sector.confidence,
+                evidence: sector.evidence,
+                sentiment,
               },
             });
             grandSector++;

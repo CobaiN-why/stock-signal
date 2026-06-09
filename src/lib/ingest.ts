@@ -1,15 +1,15 @@
 import { prisma } from "@/lib/db";
 import { detectSentiment } from "@/lib/sentiment";
 import {
-  identifySectorsAcrossMarkets,
-  type SectorMention,
-} from "@/lib/sector-identifier";
+  analyzeSectorsAndSentiment,
+  type Sentiment,
+  type UnifiedAnalysis,
+} from "@/lib/sector-ai";
 import {
   ensureStockExists,
   identifyStocksAcrossMarkets,
   type StockMention,
 } from "@/lib/stock-identifier";
-import { expandSectorMentionsWithLinks } from "@/lib/sector-links";
 import { inferSectorsFromStockMention } from "@/lib/stock-sector-mapping";
 import { getPostSource } from "@/lib/social";
 import {
@@ -26,6 +26,17 @@ interface IngestResult {
   stockMentions: number;
   sectorMentions: number;
   errors: { username: string; message: string }[];
+}
+
+interface SectorMentionInput {
+  sectorId: string;
+  market: string;
+  slug: string;
+  name: string;
+  evidence: string;
+  confidence: number;
+  sentiment: Sentiment | null;
+  sentimentTarget?: string;
 }
 
 export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
@@ -52,12 +63,29 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
         });
         if (exists) continue;
 
-        const [stockMatches, directSectorMatches] = await Promise.all([
-          identifyStocksAcrossMarkets(sourcePost.text),
-          identifySectorsAcrossMarkets(sourcePost.text),
-        ]);
+        const stockMatches = await identifyStocksAcrossMarkets(sourcePost.text);
+        if (stockMatches.length === 0) continue;
 
-        if (stockMatches.length === 0 && directSectorMatches.length === 0) continue;
+        // ── Step 1: AI unified analysis (sectors + sentiment, one call) ──
+        const aiResults = await analyzeSectorsAndSentiment(
+          sourcePost.text,
+          stockMatches
+        );
+
+        // Build lookups from AI results
+        const aiByStock = new Map<string, UnifiedAnalysis>();
+        const aiDirectSectors = new Map<string, UnifiedAnalysis>();
+        for (const r of aiResults) {
+          if (r.ticker && r.market) {
+            aiByStock.set(`${r.market}:${r.ticker}`, r);
+          } else {
+            // Direct sector mention (no ticker)
+            const existing = aiDirectSectors.get(r.sectorSlug);
+            if (!existing || existing.confidence < r.confidence) {
+              aiDirectSectors.set(r.sectorSlug, r);
+            }
+          }
+        }
 
         const post = await prisma.post.create({
           data: {
@@ -69,12 +97,13 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
           },
         });
 
-        const sectorMentionsById = new Map<string, SectorMention>();
-        for (const sector of directSectorMatches) {
-          sectorMentionsById.set(sector.sectorId, sector);
-        }
+        // ── Step 2: Persist stock mentions ──
+        const sectorMentionsById = new Map<string, SectorMentionInput>();
 
         for (const mention of stockMatches) {
+          const stockKey = `${mention.market}:${mention.ticker}`;
+          const aiResult = aiByStock.get(stockKey);
+
           const result = await persistStockMention({
             mention,
             postId: post.id,
@@ -82,30 +111,98 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
             bloggerUsername: blogger.xUsername,
             content: sourcePost.text,
             postUrl: sourcePost.url,
+            aiSentiment: aiResult?.stockSentiment ?? undefined,
+            skipSectorInference: !!aiResult,
           });
+          stockMentions++;
 
-          for (const sector of result.sectors) {
-            if (!sectorMentionsById.has(sector.sectorId)) {
-              sectorMentionsById.set(sector.sectorId, sector);
+          // Collect sector mentions: AI result takes priority
+          if (aiResult) {
+            const sector = await lookupCnSector(aiResult.sectorSlug);
+            if (sector) {
+              mergeSectorMention(sectorMentionsById, {
+                sectorId: sector.id,
+                market: "CN",
+                slug: aiResult.sectorSlug,
+                name: aiResult.sectorName,
+                evidence: aiResult.evidence,
+                confidence: aiResult.confidence,
+                sentiment: aiResult.sectorSentiment,
+                sentimentTarget: mention.ticker,
+              });
+            }
+          } else {
+            // DB fallback for stocks AI didn't map
+            for (const s of result.dbSectors) {
+              mergeSectorMention(sectorMentionsById, {
+                sectorId: s.sectorId,
+                market: s.market,
+                slug: s.slug,
+                name: s.name,
+                evidence: s.evidence,
+                confidence: s.confidence,
+                sentiment: s.sentiment ?? null,
+                sentimentTarget: s.sentimentTarget,
+              });
             }
           }
-          stockMentions++;
         }
 
-        // Cross-market expansion: adds US→CN and CN→US links (confidence 0.15-0.18)
-        // These are weak but useful for trend detection and heat detection
-        const expandedSectorMentions = await expandSectorMentionsWithLinks(
-          sectorMentionsById.values()
-        );
+        // ── Step 3: Direct sector mentions from AI (no ticker attached) ──
+        for (const [slug, aiResult] of aiDirectSectors) {
+          const sector = await lookupCnSector(slug);
+          if (sector) {
+            mergeSectorMention(sectorMentionsById, {
+              sectorId: sector.id,
+              market: "CN",
+              slug,
+              name: aiResult.sectorName,
+              evidence: aiResult.evidence,
+              confidence: aiResult.confidence,
+              sentiment: aiResult.sectorSentiment,
+            });
+          }
+        }
 
-        for (const sector of expandedSectorMentions) {
-          const sentiment =
-            "sentiment" in sector
-              ? sector.sentiment ?? null
-              : await detectSentiment(
-                  sourcePost.text,
-                  sector.sentimentTarget ?? sector.name
-                );
+        // ── Step 4: CN ETF DB supplement (sectors AI may have missed) ──
+        for (const mention of stockMatches) {
+          if (!(mention.assetType === "ETF" && mention.market === "CN")) continue;
+
+          const { id: stockId } = await ensureStockExists(
+            mention.ticker,
+            mention.market,
+            mention.assetType
+          );
+          const dbSectors = await inferSectorsFromStockMention(
+            stockId,
+            mention.ticker,
+            mention.market,
+            mention.assetType
+          );
+
+          for (const s of dbSectors) {
+            if (sectorMentionsById.has(s.sectorId)) continue;
+
+            const sentiment =
+              s.sentiment ?? (await detectSentiment(sourcePost.text, s.name));
+
+            mergeSectorMention(sectorMentionsById, {
+              sectorId: s.sectorId,
+              market: s.market,
+              slug: s.slug,
+              name: s.name,
+              evidence: s.evidence,
+              confidence: s.confidence,
+              sentiment,
+              sentimentTarget: s.sentimentTarget,
+            });
+          }
+        }
+
+        // ── Step 5: Write PostSector + SignalEvent ──
+        for (const [, sector] of sectorMentionsById) {
+          const sentiment = sector.sentiment ?? null;
+
           await prisma.postSector.create({
             data: {
               postId: post.id,
@@ -120,7 +217,7 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
           await recordSectorMention({
             sectorId: sector.sectorId,
             sectorName: sector.name,
-            market: sector.market,
+            market: sector.market as "US" | "CN",
             blogger: blogger.xUsername,
             content: sourcePost.text,
             postUrl: sourcePost.url,
@@ -145,9 +242,15 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
   }
 
   if (errors.length > 0) {
-    const lines = errors.map((e) => `- @${e.username}: ${e.message.slice(0, 120)}`);
+    const lines = errors.map(
+      (e) => `- @${e.username}: ${e.message.slice(0, 120)}`
+    );
     await recordIngestAlert(
-      [`fetch-posts 出错 (${errors.length}/${bloggers.length} 个博主失败)`, "", ...lines].join("\n")
+      [
+        `fetch-posts 出错 (${errors.length}/${bloggers.length} 个博主失败)`,
+        "",
+        ...lines,
+      ].join("\n")
     ).catch(() => {});
   }
 
@@ -167,10 +270,12 @@ async function persistStockMention(input: {
   bloggerUsername: string;
   content: string;
   postUrl: string;
+  aiSentiment?: Sentiment | null;
+  skipSectorInference?: boolean;
 }): Promise<{
   stockId: string;
   sentiment: string | null;
-  sectors: SectorMention[];
+  dbSectors: Awaited<ReturnType<typeof inferSectorsFromStockMention>>;
 }> {
   const { id: stockId, isNew } = await ensureStockExists(
     input.mention.ticker,
@@ -178,7 +283,8 @@ async function persistStockMention(input: {
     input.mention.assetType
   );
 
-  const sentiment = await detectSentiment(input.content, input.mention.ticker);
+  // Use AI sentiment if available, otherwise fall back to rules+AI sentiment detection
+  const sentiment = input.aiSentiment ?? (await detectSentiment(input.content, input.mention.ticker));
 
   const postStock = await prisma.postStock.create({
     data: {
@@ -200,15 +306,19 @@ async function persistStockMention(input: {
     });
   }
 
-  const inferredSectors = await inferSectorsFromStockMention(
-    stockId,
-    input.mention.ticker,
-    input.mention.market,
-    input.mention.assetType
-  );
+  // DB sector inference (skip if AI already handled it)
+  const dbSectors = input.skipSectorInference
+    ? []
+    : await inferSectorsFromStockMention(
+        stockId,
+        input.mention.ticker,
+        input.mention.market,
+        input.mention.assetType
+      );
 
-  if (!sentiment) return { stockId, sentiment, sectors: inferredSectors };
+  if (!sentiment) return { stockId, sentiment, dbSectors };
 
+  // ── Signal events: sentiment flip & divergence ──
   const previousPost = await prisma.postStock.findFirst({
     where: {
       stockId,
@@ -244,7 +354,7 @@ async function persistStockMention(input: {
 
   const sentiments = new Set(latestByBlogger.map((r) => r.sentiment));
   if (!sentiments.has("bullish") || !sentiments.has("bearish")) {
-    return { stockId, sentiment, sectors: inferredSectors };
+    return { stockId, sentiment, dbSectors };
   }
 
   const previousByBlogger = await prisma.$queryRaw<{ sentiment: string }[]>`
@@ -259,7 +369,7 @@ async function persistStockMention(input: {
 
   const prevSentiments = new Set(previousByBlogger.map((r) => r.sentiment));
   if (prevSentiments.size > 1) {
-    return { stockId, sentiment, sectors: inferredSectors };
+    return { stockId, sentiment, dbSectors };
   }
 
   const detailedLatest = await prisma.$queryRaw<
@@ -291,5 +401,25 @@ async function persistStockMention(input: {
     postUrl: input.postUrl,
   });
 
-  return { stockId, sentiment, sectors: inferredSectors };
+  return { stockId, sentiment, dbSectors };
+}
+
+// ── Helpers ──
+
+async function lookupCnSector(slug: string) {
+  const sector = await prisma.sector.findUnique({
+    where: { market_slug: { market: "CN", slug } },
+    select: { id: true, name: true },
+  });
+  return sector;
+}
+
+function mergeSectorMention(
+  map: Map<string, SectorMentionInput>,
+  mention: SectorMentionInput
+) {
+  const existing = map.get(mention.sectorId);
+  if (!existing || existing.confidence < mention.confidence) {
+    map.set(mention.sectorId, mention);
+  }
 }

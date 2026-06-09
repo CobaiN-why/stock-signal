@@ -4,7 +4,7 @@ import {
   getAiProvider,
 } from "../src/lib/ai/index.js";
 import { detectSentiment } from "../src/lib/sentiment.js";
-import { identifySectorsAcrossMarkets } from "../src/lib/sector-identifier.js";
+import { analyzeSectorsAndSentiment } from "../src/lib/sector-ai.js";
 import { prisma } from "../src/lib/db.js";
 
 async function main() {
@@ -46,17 +46,21 @@ async function main() {
   const sentiment = await detectSentiment(post, "半导体");
   console.log("Sentiment fallback result:", sentiment ?? "unknown");
 
-  const sectors = await identifySectorsAcrossMarkets(
-    "AI capex keeps pushing HBM, CoWoS, and high-bandwidth memory supply chains into a new bottleneck cycle."
+  const sectors = await analyzeSectorsAndSentiment(
+    "AI capex keeps pushing HBM, CoWoS, and high-bandwidth memory supply chains into a new bottleneck cycle.",
+    []
   );
   console.log(
     "Sector analysis result:",
-    sectors.map((sector) => ({
-      market: sector.market,
-      slug: sector.slug,
-      name: sector.name,
-      confidence: sector.confidence,
-      evidence: sector.evidence,
+    sectors.map((r) => ({
+      ticker: r.ticker,
+      company: r.company,
+      sectorSlug: r.sectorSlug,
+      sectorName: r.sectorName,
+      stockSentiment: r.stockSentiment,
+      sectorSentiment: r.sectorSentiment,
+      confidence: r.confidence,
+      evidence: r.evidence,
     }))
   );
 }
