@@ -14,6 +14,7 @@ interface SectorSummary {
   name: string;
   description: string;
   mentionCount: number;
+  uniqueBloggerCount: number;
   bullishCount: number;
   bearishCount: number;
   bullBearRatio: number | null;
@@ -25,6 +26,7 @@ interface SectorSummary {
     displayName: string;
     color: string;
     score: number;
+    mentionCount?: number;
   }[];
   primaryEtf: {
     ticker: string;
@@ -128,7 +130,7 @@ export default function SignalOverview({ onSelectTicker }: Props) {
           emoji="🔥"
           title="最热板块"
           value={hottest?.name ?? "—"}
-          subtitle={hottest ? `${hottest.mentionCount} 位博主提及` : undefined}
+          subtitle={hottest ? `${hottest.mentionCount}条 · ${hottest.uniqueBloggerCount}位博主` : undefined}
           onClick={() => hottest && setSelectedSector(hottest)}
         />
         <SummaryCard
@@ -230,9 +232,13 @@ export default function SignalOverview({ onSelectTicker }: Props) {
                 {/* Meta row */}
                 <div className="flex items-center gap-4 mt-2 text-xs text-[var(--text-secondary)]">
                   <span>
-                    {sector.mentionCount} 位博主 ·{" "}
-                    {sector.topBloggers.filter((b) => b.score >= 70).length}{" "}
-                    位高可信
+                    {sector.mentionCount} 条提及 · {sector.uniqueBloggerCount}{" "}
+                    位博主
+                    {sector.topBloggers.filter((b) => b.score >= 70).length >
+                      0 &&
+                      ` · ${
+                        sector.topBloggers.filter((b) => b.score >= 70).length
+                      } 位高可信`}
                   </span>
                   <span>
                     趋势{" "}

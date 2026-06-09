@@ -70,11 +70,50 @@ export async function GET(req: NextRequest) {
     ).length;
     const totalWithSentiment = bullishCount + bearishCount;
 
-    // Calculate credibility-weighted signal strength
+    // Count unique bloggers from actual post data (credibility table may be empty)
+    const bloggerMap = new Map<
+      string,
+      { xUsername: string; displayName: string; color: string; count: number }
+    >();
+    for (const ps of postSectors) {
+      const b = ps.post.blogger;
+      const existing = bloggerMap.get(b.id);
+      if (existing) {
+        existing.count++;
+      } else {
+        bloggerMap.set(b.id, {
+          xUsername: b.xUsername,
+          displayName: b.displayName,
+          color: b.color,
+          count: 1,
+        });
+      }
+    }
+    const uniqueBloggers = [...bloggerMap.values()].sort(
+      (a, b) => b.count - a.count
+    );
+
+    // Merge credibility scores from DB (if any)
     const credMap = new Map(
       sector.credibility.map((c) => [c.bloggerId, Number(c.score)])
     );
 
+    // Build top bloggers: merge from post data + credibility scores
+    const topBloggers = uniqueBloggers.slice(0, 5).map((b) => {
+      // Find by username in credibility data
+      const cred = sector.credibility.find(
+        (c) => c.blogger.xUsername === b.xUsername
+      );
+      return {
+        xUsername: b.xUsername,
+        displayName: b.displayName,
+        color: b.color,
+        score: cred ? Number(cred.score) : 0,
+        mentionCount: b.count,
+      };
+    });
+
+    // Calculate credibility-weighted signal strength
     let weightedBullish = 0;
     let weightedBearish = 0;
     let totalWeight = 0;
@@ -142,6 +181,7 @@ export async function GET(req: NextRequest) {
       name: sector.name,
       description: sector.description,
       mentionCount: postSectors.length,
+      uniqueBloggerCount: uniqueBloggers.length,
       bullishCount,
       bearishCount,
       bullBearRatio:
@@ -153,12 +193,7 @@ export async function GET(req: NextRequest) {
         Math.abs(signalStrength - 50) * 2
       ),
       trend,
-      topBloggers: sector.credibility.slice(0, 5).map((c) => ({
-        xUsername: c.blogger.xUsername,
-        displayName: c.blogger.displayName,
-        color: c.blogger.color,
-        score: Number(c.score),
-      })),
+      topBloggers,
       primaryEtf:
         sector.etfs.length > 0
           ? {
