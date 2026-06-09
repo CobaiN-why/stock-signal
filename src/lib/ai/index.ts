@@ -8,11 +8,13 @@ const providers: Record<string, AiProvider> = {
   deepseek: deepseekProvider,
 };
 
+const DEFAULT_AI_PROVIDER = "deepseek";
+
 export function getAiProvider(kind: "sentiment" | "analysis" = "sentiment"): AiProvider | null {
   const raw =
     kind === "sentiment"
-      ? process.env.SENTIMENT_AI_PROVIDER ?? process.env.AI_PROVIDER ?? "kimi"
-      : process.env.ANALYSIS_AI_PROVIDER ?? process.env.AI_PROVIDER ?? "kimi";
+      ? process.env.SENTIMENT_AI_PROVIDER ?? process.env.AI_PROVIDER ?? DEFAULT_AI_PROVIDER
+      : process.env.ANALYSIS_AI_PROVIDER ?? process.env.AI_PROVIDER ?? DEFAULT_AI_PROVIDER;
 
   return providers[raw.toLowerCase()] ?? null;
 }

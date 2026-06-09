@@ -4,7 +4,7 @@ const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
 
 export const deepseekProvider: AiProvider = {
   name: "deepseek",
-  defaultModel: "deepseek-chat",
+  defaultModel: "deepseek-v4-flash",
 
   async chat(
     messages: ChatMessage[],
