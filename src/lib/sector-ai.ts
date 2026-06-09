@@ -55,9 +55,9 @@ export async function analyzeSectorsAndSentiment(
   const provider = getAiProvider("analysis");
   if (!provider) return [];
 
-  // Load CN sector candidates for the AI to map to
+  // Load CN sector candidates for the AI to map to (only sectors with ETFs)
   const cnSectors = await prisma.sector.findMany({
-    where: { market: "CN" },
+    where: { market: "CN", etfs: { some: {} } },
     select: {
       slug: true,
       name: true,
