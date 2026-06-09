@@ -63,6 +63,11 @@ export async function expandSectorMentionsWithLinks(
     );
     if (!target) continue;
 
+    const source = Array.from(mentions.values()).find(
+      (mention) =>
+        mention.market === link.sourceMarket && mention.slug === link.sourceSlug
+    );
+
     setIfStronger(mentions, {
       sectorId: target.id,
       market: target.market === "CN" ? "CN" : "US",
@@ -70,6 +75,8 @@ export async function expandSectorMentionsWithLinks(
       name: target.name,
       confidence: link.confidence,
       evidence: link.evidence,
+      sentimentTarget: source?.sentimentTarget,
+      sentiment: source?.sentiment,
     });
   }
 

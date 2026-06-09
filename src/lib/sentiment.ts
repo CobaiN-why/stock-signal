@@ -65,6 +65,49 @@ const NEGATION_EN = [
 
 const NEGATION_CN = ["不", "没", "无", "别", "避免", "不是", "不能", "难以"];
 
+const HISTORICAL_POSITION_EN = [
+  /\b(last|past|previous)\s+(week|month|quarter|year)\b/i,
+  /\b(previously|earlier|back then|at the time|used to)\b/i,
+  /\b(sold|trimmed|exited|closed|reduced)\b/i,
+];
+
+const HISTORICAL_POSITION_CN = [
+  "上周",
+  "上个月",
+  "上季度",
+  "去年",
+  "之前",
+  "此前",
+  "当时",
+  "曾经",
+  "卖了",
+  "抛了",
+  "减了",
+  "清仓了",
+  "退出了",
+];
+
+const CURRENT_VIEW_EN = [
+  /\b(now|today|currently|still|here|going forward|from here|next|expect|think|should|will)\b/i,
+  /\b(room to run|upside|downside|target|thesis|setup)\b/i,
+];
+
+const CURRENT_VIEW_CN = [
+  "现在",
+  "目前",
+  "今天",
+  "仍然",
+  "继续",
+  "接下来",
+  "后面",
+  "未来",
+  "预计",
+  "认为",
+  "看好",
+  "看空",
+  "还有空间",
+];
+
 const bullishEnRegexes = BULLISH_EN.map((p) => new RegExp(p, "i"));
 const bearishEnRegexes = BEARISH_EN.map((p) => new RegExp(p, "i"));
 const negationEnRegexes = NEGATION_EN.map((p) => new RegExp(p, "i"));
@@ -120,6 +163,19 @@ function scoreKeywords(scope: string, keywords: string[]): number {
   return score;
 }
 
+function isHistoricalOnlyPositionScope(scope: string): boolean {
+  const lower = scope.toLowerCase();
+  const hasHistoricalMarker =
+    HISTORICAL_POSITION_EN.some((re) => re.test(scope)) ||
+    HISTORICAL_POSITION_CN.some((kw) => lower.includes(kw));
+  if (!hasHistoricalMarker) return false;
+
+  const hasCurrentView =
+    CURRENT_VIEW_EN.some((re) => re.test(scope)) ||
+    CURRENT_VIEW_CN.some((kw) => lower.includes(kw));
+  return !hasCurrentView;
+}
+
 export function detectSentimentByRules(
   text: string,
   target?: string
@@ -128,6 +184,7 @@ export function detectSentimentByRules(
   let bearCount = 0;
 
   for (const scope of windowsAroundTarget(text, target)) {
+    if (isHistoricalOnlyPositionScope(scope)) continue;
     bullCount += scoreRegexes(scope, bullishEnRegexes);
     bullCount += scoreKeywords(scope, BULLISH_CN);
     bearCount += scoreRegexes(scope, bearishEnRegexes);
@@ -143,9 +200,6 @@ export async function detectSentiment(
   text: string,
   target: string
 ): Promise<Sentiment | null> {
-  const rulesResult = detectSentimentByRules(text, target);
-  if (rulesResult) return rulesResult;
-
   const provider = getAiProvider("sentiment");
   if (!provider) return null;
 
@@ -164,7 +218,8 @@ IMPORTANT RULES:
 3. If the post says a sector/theme is crowded, deteriorating, overvalued, losing demand, or breaking down, classify bearish.
 4. If a stock is mentioned as a positive example inside a target sector, that can be bullish for the sector.
 5. If the author mentions the target only in passing or as historical context without expressing a current view, reply unknown.
-6. A post may mention multiple tickers or sectors. Classify sentiment ONLY for the requested target.
+6. A completed past trade is not automatically current sentiment. "Sold last month", "trimmed earlier", "之前卖了", or "上个月抛了" should be unknown unless the author also gives a current forward-looking view on that exact target.
+7. A post may mention multiple tickers or sectors. Classify sentiment ONLY for the requested target.
 
 FEW-SHOT EXAMPLES:
 
@@ -222,8 +277,13 @@ Reason: The author is contrasting losers (software stocks) with winners ($AAOI u
 
 Tweet: "Sold my $NVDA position last month. Rotating into $AXTI and $AAOI which I think have more room to run."
 Ticker: NVDA
-Answer: bearish
-Reason: Author sold NVDA to buy other stocks — expressing a negative/exit view on NVDA specifically.
+Answer: unknown
+Reason: The NVDA sale is a completed historical action. The current bullish view is on AXTI and AAOI, not NVDA.
+
+Tweet: "上个月卖了 $TSLA，后来涨跌都和我无关了。"
+Ticker: TSLA
+Answer: unknown
+Reason: The author only describes a past exit and gives no current forward-looking view.
 
 Tweet: "Back at $44 EUR, European media said $SOI was an 'overvalued stock' and 'purely speculative'. Traditions analysts had no clue. $SOI is now up 342% since."
 Ticker: SOI

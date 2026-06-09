@@ -75,7 +75,13 @@ export async function POST(req: NextRequest) {
     );
 
     for (const sector of expanded) {
-      const sentiment = await detectSentiment(post.content, sector.name);
+      const sentiment =
+        "sentiment" in sector
+          ? sector.sentiment ?? null
+          : await detectSentiment(
+              post.content,
+              sector.sentimentTarget ?? sector.name
+            );
       await prisma.postSector.create({
         data: {
           postId: post.id,

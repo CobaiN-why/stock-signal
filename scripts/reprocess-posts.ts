@@ -102,7 +102,7 @@ async function detectPostSentiment(
   target: string,
   rulesOnly: boolean
 ): Promise<Sentiment> {
-  if (rulesOnly) return detectSentimentByRules(text);
+  if (rulesOnly) return detectSentimentByRules(text, target);
   return detectSentiment(text, target);
 }
 
@@ -284,11 +284,14 @@ async function main() {
         expectedSectorIds.add(sector.sectorId);
         affectedSectorIds.add(sector.sectorId);
 
-        const sentiment = await detectPostSentiment(
-          post.content,
-          sector.name,
-          options.rulesOnly || options.dryRun
-        );
+        const sentiment =
+          !options.rulesOnly && !options.dryRun && "sentiment" in sector
+            ? sector.sentiment ?? null
+            : await detectPostSentiment(
+                post.content,
+                sector.sentimentTarget ?? sector.name,
+                options.rulesOnly || options.dryRun
+              );
 
         if (!options.dryRun) {
           await prisma.postSector.upsert({

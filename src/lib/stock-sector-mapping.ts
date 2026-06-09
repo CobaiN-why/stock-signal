@@ -31,6 +31,7 @@ function toSectorMention(
     name: sector.name,
     evidence: evidenceForAsset(ticker, assetType),
     confidence: confidenceForAsset(assetType),
+    sentimentTarget: ticker,
   };
 }
 

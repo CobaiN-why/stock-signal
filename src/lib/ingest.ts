@@ -99,7 +99,13 @@ export async function ingestPostsFromActiveBloggers(): Promise<IngestResult> {
         );
 
         for (const sector of expandedSectorMentions) {
-          const sentiment = await detectSentiment(sourcePost.text, sector.name);
+          const sentiment =
+            "sentiment" in sector
+              ? sector.sentiment ?? null
+              : await detectSentiment(
+                  sourcePost.text,
+                  sector.sentimentTarget ?? sector.name
+                );
           await prisma.postSector.create({
             data: {
               postId: post.id,

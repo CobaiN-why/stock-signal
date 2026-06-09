@@ -107,7 +107,10 @@ export async function POST(req: NextRequest) {
             });
 
             const inferredSectors = await inferSectorsFromStockMention(
-              stockId, mention.ticker, mention.market, mention.assetType
+              stockId,
+              mention.ticker,
+              mention.market,
+              mention.assetType
             );
             for (const sector of inferredSectors) {
               if (!sectorMentionsById.has(sector.sectorId)) {
@@ -119,7 +122,13 @@ export async function POST(req: NextRequest) {
 
           const expanded = await expandSectorMentionsWithLinks(sectorMentionsById.values());
           for (const sector of expanded) {
-            const sentiment = await detectSentiment(sourcePost.text, sector.name);
+            const sentiment =
+              "sentiment" in sector
+                ? sector.sentiment ?? null
+                : await detectSentiment(
+                    sourcePost.text,
+                    sector.sentimentTarget ?? sector.name
+                  );
             await prisma.postSector.create({
               data: {
                 postId: post.id, sectorId: sector.sectorId,
