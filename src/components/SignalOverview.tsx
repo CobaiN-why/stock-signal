@@ -67,7 +67,7 @@ export default function SignalOverview() {
     setSelectedSector(null);
 
     Promise.all([
-      fetch(`/api/sectors/overview?market=${market}&days=3`).then((r) =>
+      fetch(`/api/sectors/overview?market=${market}&days=30`).then((r) =>
         r.json()
       ),
       fetch(`/api/stats?market=${market}`).then((r) => r.json()),
