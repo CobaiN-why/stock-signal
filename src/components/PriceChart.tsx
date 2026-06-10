@@ -193,7 +193,7 @@ export default function PriceChart({
     });
     volumeSeries.setData(volumeData);
 
-    // ── Aggregated daily markers (one dot per day, color by dominant sentiment) ──
+    // ── One marker per day: arrow by dominant sentiment ──
     const mentionsByDate = new Map<string, Mention[]>();
     for (const m of data.mentions) {
       if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
@@ -203,11 +203,12 @@ export default function PriceChart({
       mentionsByDate.get(date)!.push(m);
     }
 
+    type MarkerShape = "arrowUp" | "arrowDown" | "circle";
     const markers: {
       time: Time;
       position: "belowBar";
       color: string;
-      shape: "circle";
+      shape: MarkerShape;
       text: string;
       size: number;
     }[] = [];
@@ -221,19 +222,19 @@ export default function PriceChart({
       const bearCount = bloggers.filter((m) => m.sentiment === "bearish").length;
       const total = bloggers.length;
 
-      // Color by dominant sentiment
-      let color = "#9ca3af"; // gray = all unknown
-      if (bullCount > 0 && bearCount === 0) color = "#ef4444"; // all bullish
-      else if (bearCount > 0 && bullCount === 0) color = "#22c55e"; // all bearish
-      else if (bullCount > 0 && bearCount > 0) color = "#f59e0b"; // mixed
+      let shape: MarkerShape = "circle";
+      let color = "#9ca3af";
+      if (bullCount > bearCount) { shape = "arrowUp"; color = "#ef4444"; }
+      else if (bearCount > bullCount) { shape = "arrowDown"; color = "#22c55e"; }
+      // tie or all unknown → circle, gray
 
       markers.push({
         time: date as Time,
         position: "belowBar",
         color,
-        shape: "circle",
+        shape,
         text: total > 1 ? String(total) : "",
-        size: total > 1 ? 2.5 : 2,
+        size: 2,
       });
     }
     markers.sort((a, b) => (a.time < b.time ? -1 : 1));
