@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   createChart,
+  createSeriesMarkers,
   CandlestickSeries,
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type Time,
 } from "lightweight-charts";
 import type { Market } from "@/lib/markets";
@@ -81,10 +83,8 @@ export default function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [data, setData] = useState<StockDetail | null>(null);
-  const [dailySignals, setDailySignals] = useState<
-    { date: string; dominant: "bullish" | "bearish" | "mixed" | "none"; count: number }[]
-  >([]);
   const [hoveredMention, setHoveredMention] = useState<Mention | null>(null);
   const [tooltipMentions, setTooltipMentions] = useState<Mention[]>([]);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -194,34 +194,30 @@ export default function PriceChart({
     });
     volumeSeries.setData(volumeData);
 
-    // ── Compute daily signals for CSS-rendered indicators (NOT chart markers) ──
-    const mentionsByDate = new Map<string, Mention[]>();
+    // ── Daily sentiment markers: one per day, arrow by dominant view ──
+    const byDate = new Map<string, { bull: number; bear: number }>();
     for (const m of data.mentions) {
-      if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
-        continue;
-      const date = m.post.postedAt.slice(0, 10);
-      if (!mentionsByDate.has(date)) mentionsByDate.set(date, []);
-      mentionsByDate.get(date)!.push(m);
+      if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger) continue;
+      const d = m.post.postedAt.slice(0, 10);
+      if (!byDate.has(d)) byDate.set(d, { bull: 0, bear: 0 });
+      const entry = byDate.get(d)!;
+      if (m.sentiment === "bullish") entry.bull++;
+      else if (m.sentiment === "bearish") entry.bear++;
     }
 
-    const signals: { date: string; dominant: "bullish" | "bearish" | "mixed" | "none"; count: number }[] = [];
-    for (const [date, mentions] of mentionsByDate) {
-      const seen = new Set<string>();
-      let bull = 0, bear = 0;
-      for (const m of mentions) {
-        const key = `${m.post.blogger.xUsername}:${m.post.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        if (m.sentiment === "bullish") bull++;
-        else if (m.sentiment === "bearish") bear++;
-      }
-      let dominant: "bullish" | "bearish" | "mixed" | "none" = "none";
-      if (bull > bear) dominant = "bullish";
-      else if (bear > bull) dominant = "bearish";
-      else if (bull > 0 && bear > 0) dominant = "mixed";
-      signals.push({ date, dominant, count: seen.size });
+    const markers: { time: Time; position: "belowBar"; color: string; shape: "arrowUp" | "arrowDown" | "circle"; text: string }[] = [];
+    for (const [date, { bull, bear }] of byDate) {
+      const total = bull + bear;
+      markers.push({
+        time: date as Time,
+        position: "belowBar",
+        color: bull > bear ? "#ef4444" : bear > bull ? "#22c55e" : "#9ca3af",
+        shape: bull > bear ? "arrowUp" : bear > bull ? "arrowDown" : "circle",
+        text: total > 1 ? String(total) : "",
+      });
     }
-    setDailySignals(signals);
+
+    markersRef.current = createSeriesMarkers(candleSeries, markers);
 
     // ── Click handler ──
     chart.subscribeClick((param) => {
@@ -348,27 +344,6 @@ export default function PriceChart({
       </div>
 
       {/* Chart */}
-      {/* Daily signal indicators (CSS, no chart library markers) */}
-      {dailySignals.length > 0 && (
-        <div className="flex gap-1 mb-1 flex-wrap">
-          {dailySignals.map((s) => (
-            <span
-              key={s.date}
-              title={`${s.date}: ${s.dominant === "bullish" ? "看多" : s.dominant === "bearish" ? "看空" : s.dominant === "mixed" ? "多空分歧" : "不明"} · ${s.count}位博主`}
-              className={`text-xs font-bold ${
-                s.dominant === "bullish"
-                  ? "text-red-500"
-                  : s.dominant === "bearish"
-                    ? "text-green-500"
-                    : "text-gray-400"
-              }`}
-            >
-              {s.dominant === "bullish" ? "↑" : s.dominant === "bearish" ? "↓" : "●"}
-              {s.count > 1 ? <sup className="text-[10px]">{s.count}</sup> : null}
-            </span>
-          ))}
-        </div>
-      )}
       <div className="relative">
         <div ref={chartContainerRef} />
 
