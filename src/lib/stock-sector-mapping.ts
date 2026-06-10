@@ -37,7 +37,7 @@ export async function inferSectorsFromStockMention(
     slug: mapped.sector.slug,
     name: mapped.sector.name,
     evidence: `由 ETF ${ticker} 映射到板块`,
-    confidence: 0.75,
+    confidence: 1.0,
     sentimentTarget: ticker,
   }));
 }

@@ -111,7 +111,7 @@ export async function analyzeSectorsAndSentiment(
       }
     );
 
-    return parseAnalysisResult(answer, cnSectors);
+    return parseAnalysisResult(answer, cnSectors, stockMentions);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const key = message.slice(0, 120);
@@ -222,10 +222,16 @@ For direct sector mentions (no ticker), omit ticker/market/company/stock_sentime
 
 function parseAnalysisResult(
   answer: string,
-  cnSectors: { slug: string; name: string; description: string | null }[]
+  cnSectors: { slug: string; name: string; description: string | null }[],
+  mentions: StockMention[]
 ): UnifiedAnalysis[] {
   const parsed = parseJson(answer);
   if (!Array.isArray(parsed)) return [];
+
+  // Lookup: determine source type for each ticker
+  const mentionMap = new Map(
+    mentions.map((m) => [`${normalizeMarket(m.market)}:${m.ticker}`, m])
+  );
 
   const sectorByName = new Map(cnSectors.map((s) => [s.slug, s]));
   const results: UnifiedAnalysis[] = [];
@@ -249,7 +255,31 @@ function parseAnalysisResult(
       typeof item.confidence === "number" && Number.isFinite(item.confidence)
         ? item.confidence
         : 0.55;
-    const confidence = Math.min(0.95, Math.max(0.45, rawConfidence));
+
+    // Source-based confidence adjustment (AI raw confidence as baseline)
+    let confidence = rawConfidence;
+    if (!item.ticker) {
+      // Direct sector/theme mention — high confidence floor
+      confidence = Math.max(rawConfidence, 0.75);
+    } else {
+      const m = mentionMap.get(`${normalizeMarket(item.market)}:${item.ticker}`);
+      const isETF = m?.assetType === "ETF";
+      const isCN = m?.market === "CN";
+
+      if (isCN && isETF) {
+        // CN ETF — DB handles, AI fallback capped at 0.75
+        confidence = Math.min(rawConfidence, 0.75);
+      } else if (isCN) {
+        // A-share individual stock — high confidence floor
+        confidence = Math.max(rawConfidence, 0.80);
+      } else if (isETF) {
+        // US ETF — medium-high confidence floor
+        confidence = Math.max(rawConfidence, 0.75);
+      } else {
+        // US individual stock — medium confidence cap
+        confidence = Math.min(rawConfidence, 0.60);
+      }
+    }
 
     const stockSentiment = normalizeSentiment(item.stock_sentiment);
     const sectorSentiment = normalizeSentiment(item.sector_sentiment);
