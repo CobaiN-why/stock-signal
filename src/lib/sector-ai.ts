@@ -136,13 +136,17 @@ If the post discusses a sector/theme directly (e.g. "半导体爆发", "新能�
 
 ### 2. Stock → sector mapping
 For each detected stock:
-- **US stocks**: Use the companyInfo field provided in the input (queried from our database).
-  It contains the real company name, industry, and business description.
-  Do NOT override or guess -- ALWAYS prefer the provided companyInfo over your own knowledge.
-  - Example: NVDA → semiconductors, TSLA → new_energy
-  - **If companyInfo is missing for a stock**: you likely do not know this company well enough.
-    Set stock_sentiment to "unknown", confidence to 0.45, and evidence to
-    "无法确认该公司业务". Never invent company names or industries.
+- **US stocks**: Use the companyInfo field FIRST, but when it is missing/empty or contains
+  suspicious data (e.g., industry="N/A", company name doesn't match post context),
+  infer the sector from the POST CONTENT instead:
+  - Words like "semiconductor", "chip", "photonics", "wafer", "foundry" → semiconductors
+  - "AI", "GPU", "datacenter", "compute", "inference" → semiconductors or AI infrastructure
+  - "EV", "battery", "electric vehicle", "lithium" → new_energy
+  - "cloud", "SaaS", "platform", "big tech" → consumption_healthcare or broad_market
+  - "bank", "insurance", "financial" → financials
+  - The post context is your MOST RELIABLE signal. Use it even if companyInfo looks wrong.
+  - Only fall back to "unknown" with confidence=0.45 if NEITHER companyInfo NOR post context
+    gives any clue about what sector this stock belongs to.
 - **CN stocks (6-digit codes starting with 00/30/60/68)**: Identify the company → map to its A-share sector.
 - **CN ETFs (6-digit codes starting with 51/15/58)**: Map directly. e.g. 512760 (芯片ETF) → semiconductors
 - **assetType "ETF"** means it's already an ETF — map it directly to its sector.
