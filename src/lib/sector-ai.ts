@@ -162,11 +162,16 @@ Determine BULLISH vs BEARISH for each stock AND each sector. They CAN differ —
 
 ### 4. When NOT to map
 Do NOT output a sector if:
-- The post is purely a question with no analysis or opinion (e.g., "What caused X to go up 3660%?" — no thesis)
-- The stock mentioned has an obviously anomalous single-day move (>500%) — these are corporate actions (reverse splits, ticker changes), not real trading gains
-- The stock is only mentioned in passing with no context about its business or sector
-- The author clearly has no idea what the company does
-- If both stock_sentiment and sector_sentiment are "unknown" AND confidence would be below 0.5, omit the entry entirely
+- The post is purely asking for information with no implied thesis or opinion
+  (e.g., "What caused X to go up?" vs "难道半导体还能跌到哪去?" which implies bullish)
+  — Rhetorical questions that convey a view SHOULD still be mapped; the key test is:
+  does the author express or imply any directional opinion, even through sarcasm or rhetoric?
+- The stock mentioned has an obviously anomalous single-day move (>500%)
+  — These are nearly always corporate actions (reverse splits, ticker changes, delisting),
+  not real price discovery. 500% threshold intentionally high to avoid false positives.
+- The author clearly has no idea what the company does and is just asking others
+- If both stock_sentiment and sector_sentiment are "unknown" AND confidence would
+  be ≤ 0.5, omit the entry entirely — the AI is admitting it has nothing useful to say
 
 ### 5. Confidence
 - 0.85-0.95: explicit sector/stock discussion with clear sentiment
@@ -235,12 +240,12 @@ function parseAnalysisResult(
     const stockSentiment = normalizeSentiment(item.stock_sentiment);
     const sectorSentiment = normalizeSentiment(item.sector_sentiment);
 
-    // Skip entries where both sentiments are unknown AND confidence is low
-    // (pure questions, passing mentions with no analytical value)
+    // Skip only when AI has zero useful signal:
+    // no sentiment on stock or sector AND very unconfident mapping
     if (
       stockSentiment === "unknown" &&
       sectorSentiment === "unknown" &&
-      rawConfidence < 0.55
+      rawConfidence <= 0.5
     ) {
       continue;
     }
