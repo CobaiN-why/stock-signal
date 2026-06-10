@@ -105,8 +105,16 @@ export async function scrapeUserPosts(
       await sleep(rand(800, 1500));
     }
 
+    // Debug: check page state
+    const pageTitle = await page.title();
+    const bodyText = await page.evaluate(() => document.body.innerText.slice(0, 500));
+    console.log(`[XHS] Page title: "${pageTitle}"`);
+    console.log(`[XHS] Body sample: "${bodyText}"`);
+
     // Wait for post elements to appear
-    await page.waitForSelector('a[href*="/explore/"]', { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector('a[href*="/explore/"]', { timeout: 10000 }).catch(() => {
+      console.log("[XHS] No explore links found on profile page");
+    });
     await sleep(rand(1000, 2000));
 
     // Extract post list from the page
