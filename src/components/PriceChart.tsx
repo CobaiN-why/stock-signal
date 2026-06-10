@@ -103,7 +103,7 @@ export default function PriceChart({
     if (!chartContainerRef.current || !data || data.prices.length === 0) return;
 
     // Cleanup previous chart
-    markersRef.current = null;
+    if (markersRef.current) { try { markersRef.current.detach(); } catch {} markersRef.current = null; }
     if (chartRef.current) {
       try { chartRef.current.remove(); } catch {}
       chartRef.current = null;
@@ -217,15 +217,9 @@ export default function PriceChart({
       });
     }
 
-    // Reuse existing markers plugin, or create one (createSeriesMarkers
-    // always creates a NEW layer — only call it once per chart)
-    if (markersRef.current) {
-      console.log('[PriceChart] REUSING markers plugin, setting', markers.length, 'markers');
-      markersRef.current.setMarkers(markers);
-    } else {
-      console.log('[PriceChart] CREATING new markers plugin with', markers.length, 'markers');
-      markersRef.current = createSeriesMarkers(candleSeries, markers);
-    }
+    // Destroy old marker layer before creating new one
+    if (markersRef.current) { try { markersRef.current.detach(); } catch {} }
+    markersRef.current = createSeriesMarkers(candleSeries, markers);
 
     // ── Click handler ──
     chart.subscribeClick((param) => {
@@ -249,6 +243,7 @@ export default function PriceChart({
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      if (markersRef.current) { try { markersRef.current.detach(); } catch {} }
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
