@@ -1,11 +1,11 @@
 /**
- * Xiaohongshu local crawler — runs on Mac, outputs JSON, uploads to server.
- * Cron (add to crontab -e):
- *   0 11,14,0 * * * cd ~/workspace/stock-signal && SERVER_PASSWORD='...' npx tsx scripts/xhs-crawl-local.ts >> /tmp/xhs-cron.log 2>&1
+ * Xiaohongshu local crawler — Mac cron job.
+ * Scrapes → writes JSON → uploads to server → triggers import.
+ *
+ * Cron: 0 11,14,0 * * * cd ~/workspace/stock-signal && SERVER_PASSWORD='...' npx tsx scripts/xhs-crawl-local.ts >> /tmp/xhs-cron.log 2>&1
  */
-
 import { execSync } from "child_process";
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync } from "fs";
 import { scrapeUserPosts, closeBrowser } from "../src/lib/xiaohongshu/scraper.js";
 
 const BLOGGERS = [
@@ -16,11 +16,8 @@ const STATE_FILE = "/tmp/xhs-state.json";
 const OUTPUT_FILE = "/tmp/xhs-posts.json";
 
 function loadState(): Record<string, string> {
-  try {
-    return JSON.parse(require("fs").readFileSync(STATE_FILE, "utf8"));
-  } catch {
-    return {};
-  }
+  try { return JSON.parse(readFileSync(STATE_FILE, "utf8")); }
+  catch { return {}; }
 }
 
 function saveState(state: Record<string, string>) {
@@ -29,58 +26,42 @@ function saveState(state: Record<string, string>) {
 
 async function main() {
   console.log(`[XHS-Local] Crawl started at ${new Date().toISOString()}`);
-
   const state = loadState();
   const allPosts: any[] = [];
 
   for (const blogger of BLOGGERS) {
-    console.log(`[XHS-Local] Processing @${blogger.nickname} (${blogger.xhsId})`);
+    console.log(`[XHS-Local] @${blogger.nickname} (${blogger.xhsId})`);
     const since = state[blogger.xhsId] ? new Date(state[blogger.xhsId]) : null;
-
     try {
       const posts = await scrapeUserPosts(blogger.xhsId, since);
       console.log(`[XHS-Local] Got ${posts.length} new posts`);
-
-      for (const post of posts) {
-        allPosts.push({
-          xhsId: blogger.xhsId,
-          nickname: blogger.nickname,
-          ...post,
-        });
+      for (const p of posts) {
+        allPosts.push({ xhsId: blogger.xhsId, nickname: blogger.nickname, ...p });
       }
-
       state[blogger.xhsId] = new Date().toISOString();
     } catch (err) {
       console.error(`[XHS-Local] Error: ${String(err).slice(0, 200)}`);
     }
   }
-
   await closeBrowser();
   saveState(state);
 
-  if (allPosts.length > 0) {
-    writeFileSync(OUTPUT_FILE, JSON.stringify(allPosts, null, 2));
-    console.log(`[XHS-Local] Wrote ${allPosts.length} posts to ${OUTPUT_FILE}`);
+  if (allPosts.length === 0) {
+    console.log("[XHS-Local] No new posts");
+    return;
+  }
 
-    // Upload to server
-    try {
-      execSync(
-        `sshpass -p "${process.env.SERVER_PASSWORD || ""}" scp -o StrictHostKeyChecking=no ${OUTPUT_FILE} ac@10.67.228.33:/tmp/xhs-posts.json`,
-        { stdio: "inherit" }
-      );
-      console.log("[XHS-Local] Uploaded to server");
+  writeFileSync(OUTPUT_FILE, JSON.stringify(allPosts, null, 2));
+  console.log(`[XHS-Local] Wrote ${allPosts.length} posts to ${OUTPUT_FILE}`);
 
-      // Trigger server-side import
-      execSync(
-        `sshpass -p "${process.env.SERVER_PASSWORD || ""}" ssh -o StrictHostKeyChecking=no ac@10.67.228.33 'source ~/.nvm/nvm.sh && cd /home/ac/workspace/stock-signal && node --import dotenv/config --import tsx scripts/xhs-import.ts'`,
-        { stdio: "inherit" }
-      );
-      console.log("[XHS-Local] Import triggered on server");
-    } catch (err) {
-      console.error("[XHS-Local] Upload/import failed:", String(err).slice(0, 200));
-    }
-  } else {
-    console.log("[XHS-Local] No new posts, nothing to upload");
+  const PW = process.env.SERVER_PASSWORD || "";
+  try {
+    execSync(`sshpass -p "${PW}" scp -o StrictHostKeyChecking=no ${OUTPUT_FILE} ac@10.67.228.33:/tmp/xhs-posts.json`, { stdio: "inherit" });
+    console.log("[XHS-Local] Uploaded to server");
+    execSync(`sshpass -p "${PW}" ssh -o StrictHostKeyChecking=no ac@10.67.228.33 'source ~/.nvm/nvm.sh && cd /home/ac/workspace/stock-signal && node --import dotenv/config --import tsx scripts/xhs-import.ts'`, { stdio: "inherit" });
+    console.log("[XHS-Local] Import done");
+  } catch (err) {
+    console.error("[XHS-Local] Upload/import failed:", String(err).slice(0, 200));
   }
 }
 
