@@ -277,6 +277,7 @@ export default function SectorDetail({ slug, initialChartTicker, initialChartMar
           </div>
           <div className="p-3">
             <PriceChart
+              key={chartTicker}
               market={chartMarket as "US" | "CN"}
               ticker={chartTicker}
               selectedBlogger={chartBlogger}

@@ -194,7 +194,6 @@ export default function PriceChart({
     volumeSeries.setData(volumeData);
 
     // ── One marker per day: arrow by dominant sentiment ──
-    console.log(`[PriceChart] ${data.mentions.length} raw mentions for ${ticker}`);
     const mentionsByDate = new Map<string, Mention[]>();
     for (const m of data.mentions) {
       if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
@@ -252,10 +251,6 @@ export default function PriceChart({
     markers.sort((a, b) => (a.time < b.time ? -1 : 1));
     const deduped = markers.filter(
       (m, i) => i === 0 || m.time !== markers[i - 1].time
-    );
-    console.log(
-      `[PriceChart] ${deduped.length} markers for ${ticker}:`,
-      deduped.map((m) => `${m.time} ${m.shape} ${m.text}`).join(", ")
     );
     // Reuse or create markers plugin to avoid duplicates
     if (markersRef.current) {
