@@ -8,7 +8,6 @@ import {
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
-  type ISeriesMarkersPluginApi,
   type Time,
 } from "lightweight-charts";
 import type { Market } from "@/lib/markets";
@@ -83,7 +82,7 @@ export default function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const markersRef = useRef<any>(null);
   const [data, setData] = useState<StockDetail | null>(null);
   const [hoveredMention, setHoveredMention] = useState<Mention | null>(null);
   const [tooltipMentions, setTooltipMentions] = useState<Mention[]>([]);
@@ -104,6 +103,7 @@ export default function PriceChart({
     if (!chartContainerRef.current || !data || data.prices.length === 0) return;
 
     // Cleanup previous chart
+    markersRef.current = null;
     if (chartRef.current) {
       try { chartRef.current.remove(); } catch {}
       chartRef.current = null;
@@ -217,7 +217,13 @@ export default function PriceChart({
       });
     }
 
-    markersRef.current = createSeriesMarkers(candleSeries, markers);
+    // Reuse existing markers plugin, or create one (createSeriesMarkers
+    // always creates a NEW layer — only call it once per chart)
+    if (markersRef.current) {
+      markersRef.current.setMarkers(markers);
+    } else {
+      markersRef.current = createSeriesMarkers(candleSeries, markers);
+    }
 
     // ── Click handler ──
     chart.subscribeClick((param) => {
