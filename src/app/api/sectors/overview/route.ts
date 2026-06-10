@@ -12,20 +12,22 @@ import { classifyConfidence } from "@/lib/credibility";
  */
 export async function GET(req: NextRequest) {
   const market = normalizeMarket(req.nextUrl.searchParams.get("market"));
-  const daysParam = Number(req.nextUrl.searchParams.get("days") ?? "30");
-  const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : 30;
-  const since = new Date(Date.now() - days * 86400000);
+  const daysParam = Number(req.nextUrl.searchParams.get("days") ?? "7");
+  const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : 7;
+  const endDateStr = req.nextUrl.searchParams.get("endDate");
+  const endDate = endDateStr ? new Date(endDateStr) : new Date();
+  const since = new Date(endDate.getTime() - days * 86400000);
 
   const sectors = await prisma.sector.findMany({
     where: {
       market,
-      postSectors: { some: { post: { postedAt: { gte: since } } } },
+      postSectors: { some: { post: { postedAt: { gte: since, lte: endDate } } } },
     },
     include: {
       etfs: { orderBy: { rank: "asc" }, take: 3 },
       postSectors: {
         where: {
-          post: { postedAt: { gte: since } },
+          post: { postedAt: { gte: since, lte: endDate } },
           confidence: { gte: 0.15 }, // include weak cross-market links for trend detection
         },
         include: {

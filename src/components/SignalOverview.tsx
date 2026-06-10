@@ -53,6 +53,7 @@ export default function SignalOverview() {
   const [selectedSector, setSelectedSector] = useState<SectorSummary | null>(null);
   const [chartForSector, setChartForSector] = useState<string | null>(null);
   const [chartMarket, setChartMarket] = useState<string>("US");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to detail when a sector is selected
@@ -66,8 +67,11 @@ export default function SignalOverview() {
     setLoading(true);
     setSelectedSector(null);
 
+    const params = new URLSearchParams({ market, days: "7" });
+    if (selectedDate) params.set("endDate", selectedDate);
+
     Promise.all([
-      fetch(`/api/sectors/overview?market=${market}&days=30`).then((r) =>
+      fetch(`/api/sectors/overview?${params}`).then((r) =>
         r.json()
       ),
       fetch(`/api/stats?market=${market}`).then((r) => r.json()),
@@ -78,7 +82,7 @@ export default function SignalOverview() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [market]);
+  }, [market, selectedDate]);
 
   if (loading) {
     return (
@@ -117,6 +121,30 @@ export default function SignalOverview() {
 
   return (
     <div>
+      {/* Date picker + stats bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <input
+          type="date"
+          value={selectedDate ?? ""}
+          onChange={(e) => setSelectedDate(e.target.value || null)}
+          max={new Date().toISOString().slice(0, 10)}
+          className="text-xs px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg-card)]"
+        />
+        {selectedDate && (
+          <button
+            onClick={() => setSelectedDate(null)}
+            className="text-xs text-[var(--accent)] hover:underline"
+          >
+            回到最新
+          </button>
+        )}
+        <span className="text-xs text-[var(--text-secondary)]">
+          {selectedDate
+            ? `显示 ${selectedDate} 前一周数据`
+            : "显示近一周数据"}
+        </span>
+      </div>
+
       {/* Stats bar */}
       {stats && (
         <div className="grid grid-cols-4 gap-3 mb-6">
