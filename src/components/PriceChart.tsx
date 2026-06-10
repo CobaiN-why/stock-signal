@@ -3,12 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   createChart,
-  createSeriesMarkers,
   CandlestickSeries,
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
-  type ISeriesMarkersPluginApi,
   type Time,
 } from "lightweight-charts";
 import type { Market } from "@/lib/markets";
@@ -62,9 +60,6 @@ interface Props {
   onMentionClick: (postId: string) => void;
 }
 
-// ── Singleton guard: ensure only one chart instance renders markers ──
-let activeChartInstance = 0;
-
 // ── Constants ──
 
 const COLORS = {
@@ -86,8 +81,10 @@ export default function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [data, setData] = useState<StockDetail | null>(null);
+  const [dailySignals, setDailySignals] = useState<
+    { date: string; dominant: "bullish" | "bearish" | "mixed" | "none"; count: number }[]
+  >([]);
   const [hoveredMention, setHoveredMention] = useState<Mention | null>(null);
   const [tooltipMentions, setTooltipMentions] = useState<Mention[]>([]);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -106,18 +103,13 @@ export default function PriceChart({
   useEffect(() => {
     if (!chartContainerRef.current || !data || data.prices.length === 0) return;
 
-    // Increment instance counter — only the latest instance creates markers
-    const instanceId = ++activeChartInstance;
-
-    // Cleanup previous chart — both via ref and DOM-level
+    // Cleanup previous chart
     if (chartRef.current) {
       try { chartRef.current.remove(); } catch {}
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
-      markersRef.current = null;
     }
-    // Aggressive: clear any stale canvases from the container
     const container = chartContainerRef.current;
     while (container.firstChild) {
       container.removeChild(container.firstChild);
@@ -202,7 +194,7 @@ export default function PriceChart({
     });
     volumeSeries.setData(volumeData);
 
-    // ── One marker per day: arrow by dominant sentiment ──
+    // ── Compute daily signals for CSS-rendered indicators (NOT chart markers) ──
     const mentionsByDate = new Map<string, Mention[]>();
     for (const m of data.mentions) {
       if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
@@ -212,91 +204,24 @@ export default function PriceChart({
       mentionsByDate.get(date)!.push(m);
     }
 
-    type MarkerShape = "arrowUp" | "arrowDown" | "circle";
-    const markers: {
-      time: Time;
-      position: "belowBar";
-      color: string;
-      shape: MarkerShape;
-      text: string;
-      size: number;
-    }[] = [];
-
+    const signals: { date: string; dominant: "bullish" | "bearish" | "mixed" | "none"; count: number }[] = [];
     for (const [date, mentions] of mentionsByDate) {
-      // Dedup: one entry per (blogger + post) to avoid double-counting
-      // a single post that mentions multiple stocks
       const seen = new Set<string>();
-      const bloggers: { username: string; sentiment: string | null; color: string }[] = [];
+      let bull = 0, bear = 0;
       for (const m of mentions) {
         const key = `${m.post.blogger.xUsername}:${m.post.id}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        bloggers.push({
-          username: m.post.blogger.xUsername,
-          sentiment: m.sentiment,
-          color: m.post.blogger.color,
-        });
+        if (m.sentiment === "bullish") bull++;
+        else if (m.sentiment === "bearish") bear++;
       }
-
-      const bullCount = bloggers.filter((b) => b.sentiment === "bullish").length;
-      const bearCount = bloggers.filter((b) => b.sentiment === "bearish").length;
-      const total = bloggers.length;
-
-      let shape: MarkerShape = "circle";
-      let color = "#9ca3af";
-      if (bullCount > bearCount) { shape = "arrowUp"; color = "#ef4444"; }
-      else if (bearCount > bullCount) { shape = "arrowDown"; color = "#22c55e"; }
-
-      markers.push({
-        time: date as Time,
-        position: "belowBar",
-        color,
-        shape,
-        text: total > 1 ? String(total) : "",
-        size: 2,
-      });
+      let dominant: "bullish" | "bearish" | "mixed" | "none" = "none";
+      if (bull > bear) dominant = "bullish";
+      else if (bear > bull) dominant = "bearish";
+      else if (bull > 0 && bear > 0) dominant = "mixed";
+      signals.push({ date, dominant, count: seen.size });
     }
-    // One marker per day max
-    markers.sort((a, b) => (a.time < b.time ? -1 : 1));
-    const deduped = markers.filter(
-      (m, i) => i === 0 || m.time !== markers[i - 1].time
-    );
-    // Only render markers on the latest chart instance
-    if (instanceId === activeChartInstance) {
-      if (markersRef.current) {
-        markersRef.current.setMarkers(deduped);
-      } else {
-        markersRef.current = createSeriesMarkers(candleSeries, deduped);
-      }
-    }
-
-    // ── Crosshair: tooltip shows all mentions for that date ──
-    chart.subscribeCrosshairMove((param) => {
-      if (!param.time || !param.point) {
-        setTooltipMentions([]);
-        setHoveredMention(null);
-        return;
-      }
-      const dateStr = param.time as string;
-      const mentions = mentionsByDate.get(dateStr);
-      if (mentions && mentions.length > 0) {
-        const seen = new Set<string>();
-        const list: Mention[] = [];
-        for (const m of mentions) {
-          const key = `${m.post.blogger.xUsername}:${m.post.id}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          list.push(m);
-        }
-        setTooltipMentions(list);
-        setHoveredMention(list[0]);
-        const w = container.clientWidth;
-        setTooltipPos({ x: Math.min(param.point.x, w - 300), y: Math.max(0, param.point.y - 120) });
-      } else {
-        setTooltipMentions([]);
-        setHoveredMention(null);
-      }
-    });
+    setDailySignals(signals);
 
     // ── Click handler ──
     chart.subscribeClick((param) => {
@@ -324,7 +249,6 @@ export default function PriceChart({
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
-      markersRef.current = null;
     };
   }, [data, selectedBlogger]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -424,6 +348,27 @@ export default function PriceChart({
       </div>
 
       {/* Chart */}
+      {/* Daily signal indicators (CSS, no chart library markers) */}
+      {dailySignals.length > 0 && (
+        <div className="flex gap-1 mb-1 flex-wrap">
+          {dailySignals.map((s) => (
+            <span
+              key={s.date}
+              title={`${s.date}: ${s.dominant === "bullish" ? "看多" : s.dominant === "bearish" ? "看空" : s.dominant === "mixed" ? "多空分歧" : "不明"} · ${s.count}位博主`}
+              className={`text-xs font-bold ${
+                s.dominant === "bullish"
+                  ? "text-red-500"
+                  : s.dominant === "bearish"
+                    ? "text-green-500"
+                    : "text-gray-400"
+              }`}
+            >
+              {s.dominant === "bullish" ? "↑" : s.dominant === "bearish" ? "↓" : "●"}
+              {s.count > 1 ? <sup className="text-[10px]">{s.count}</sup> : null}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="relative">
         <div ref={chartContainerRef} />
 
