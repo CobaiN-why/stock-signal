@@ -71,6 +71,20 @@ function parseCookieString(raw: string): { name: string; value: string; domain: 
   });
 }
 
+async function setupPage(page: Page) {
+  // Set realistic viewport
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  // Set extra headers for anti-detection
+  await page.setExtraHTTPHeaders({
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Upgrade-Insecure-Requests": "1",
+  });
+}
+
 async function loginWithCookies(page: Page) {
   const rawCookie = process.env.XHS_COOKIE;
   if (!rawCookie) throw new Error("XHS_COOKIE env var not set");
@@ -90,6 +104,7 @@ export async function scrapeUserPosts(
   const page = await context.newPage();
 
   try {
+    await setupPage(page);
     await loginWithCookies(page);
 
     const url = `${XHS_BASE}/user/profile/${userId}`;
