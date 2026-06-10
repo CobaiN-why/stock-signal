@@ -86,6 +86,7 @@ export default function PriceChart({
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [data, setData] = useState<StockDetail | null>(null);
   const [hoveredMention, setHoveredMention] = useState<Mention | null>(null);
+  const [tooltipMentions, setTooltipMentions] = useState<Mention[]>([]);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   // ── Data fetching ──
 
@@ -192,7 +193,7 @@ export default function PriceChart({
     });
     volumeSeries.setData(volumeData);
 
-    // ── Mention markers (blogger sentiment arrows) ──
+    // ── Aggregated daily markers (one dot per day, color by dominant sentiment) ──
     const mentionsByDate = new Map<string, Mention[]>();
     for (const m of data.mentions) {
       if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger)
@@ -202,60 +203,61 @@ export default function PriceChart({
       mentionsByDate.get(date)!.push(m);
     }
 
-    const positions = ["inBar", "aboveBar", "belowBar"] as const;
-    type MarkerShape = "circle" | "arrowUp" | "arrowDown";
     const markers: {
       time: Time;
-      position: "inBar" | "aboveBar" | "belowBar";
+      position: "belowBar";
       color: string;
-      shape: MarkerShape;
+      shape: "circle";
       text: string;
       size: number;
     }[] = [];
 
     for (const [date, mentions] of mentionsByDate) {
-      const seenBloggers = new Map<string, Mention>();
-      for (const m of mentions) {
-        const key = m.post.blogger.xUsername;
-        if (!seenBloggers.has(key)) seenBloggers.set(key, m);
-      }
-      const uniqueBloggers = Array.from(seenBloggers.values());
+      const unique = new Map<string, Mention>();
+      for (const m of mentions) unique.set(m.post.blogger.xUsername, m);
+      const bloggers = Array.from(unique.values());
 
-      uniqueBloggers.forEach((m, i) => {
-        const shape: MarkerShape =
-          m.sentiment === "bullish"
-            ? "arrowUp"
-            : m.sentiment === "bearish"
-              ? "arrowDown"
-              : "circle";
-        markers.push({
-          time: date as Time,
-          position: positions[Math.min(i, 2)],
-          color: m.post.blogger.color,
-          shape,
-          text: uniqueBloggers.length > 1 && i === 0
-            ? `${uniqueBloggers.length}`
-            : "",
-          size: 2,
-        });
+      const bullCount = bloggers.filter((m) => m.sentiment === "bullish").length;
+      const bearCount = bloggers.filter((m) => m.sentiment === "bearish").length;
+      const total = bloggers.length;
+
+      // Color by dominant sentiment
+      let color = "#9ca3af"; // gray = all unknown
+      if (bullCount > 0 && bearCount === 0) color = "#ef4444"; // all bullish
+      else if (bearCount > 0 && bullCount === 0) color = "#22c55e"; // all bearish
+      else if (bullCount > 0 && bearCount > 0) color = "#f59e0b"; // mixed
+
+      markers.push({
+        time: date as Time,
+        position: "belowBar",
+        color,
+        shape: "circle",
+        text: total > 1 ? String(total) : "",
+        size: total > 1 ? 2.5 : 2,
       });
     }
     markers.sort((a, b) => (a.time < b.time ? -1 : 1));
     markersRef.current = createSeriesMarkers(candleSeries, markers);
 
-    // ── Crosshair: tooltip hover ──
+    // ── Crosshair: tooltip shows all mentions for that date ──
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || !param.point) {
+        setTooltipMentions([]);
         setHoveredMention(null);
         return;
       }
       const dateStr = param.time as string;
       const mentions = mentionsByDate.get(dateStr);
       if (mentions && mentions.length > 0) {
+        const unique = new Map<string, Mention>();
+        for (const m of mentions) unique.set(m.post.blogger.xUsername, m);
+        const list = Array.from(unique.values());
+        setTooltipMentions(list);
+        setHoveredMention(list[0]);
         const w = container.clientWidth;
-        setHoveredMention(mentions[0]);
-        setTooltipPos({ x: Math.min(param.point.x, w - 300), y: Math.max(0, param.point.y - 100) });
+        setTooltipPos({ x: Math.min(param.point.x, w - 300), y: Math.max(0, param.point.y - 120) });
       } else {
+        setTooltipMentions([]);
         setHoveredMention(null);
       }
     });
@@ -390,41 +392,31 @@ export default function PriceChart({
         <div ref={chartContainerRef} />
 
         {/* Mention tooltip on hover */}
-        {hoveredMention && (
+        {tooltipMentions.length > 0 && (
           <div
-            className="absolute z-10 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-md p-3 max-w-[280px] text-xs pointer-events-none"
+            className="absolute z-10 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-md p-3 max-w-[300px] text-xs pointer-events-none"
             style={{ left: tooltipPos.x, top: tooltipPos.y }}
           >
-            <div className="flex items-center gap-1 mb-1">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: hoveredMention.post.blogger.color }}
-              />
-              <span className="font-mono font-bold">
-                @{hoveredMention.post.blogger.xUsername}
-              </span>
-              {hoveredMention.sentiment && (
-                <span
-                  className="text-xs px-1 rounded"
-                  style={{
-                    color: hoveredMention.sentiment === "bullish" ? "#dc2626" : "#16a34a",
-                  }}
-                >
-                  {hoveredMention.sentiment === "bullish" ? "看多" : "看空"}
-                </span>
-              )}
-              <span className="text-[var(--text-secondary)] ml-auto">
-                {new Date(hoveredMention.post.postedAt).toLocaleDateString("zh-CN")}
-              </span>
+            <div className="text-[var(--text-secondary)] mb-1">
+              {tooltipMentions[0].post.postedAt.slice(0, 10)} · {tooltipMentions.length}位博主
             </div>
-            <p className="text-[var(--text-primary)] line-clamp-3">
-              {hoveredMention.post.content}
-            </p>
-            {hoveredMention.evidence && (
-              <p className="mt-1 text-[var(--text-secondary)]">
-                关联依据：{hoveredMention.evidence}
-              </p>
-            )}
+            {tooltipMentions.map((m, i) => (
+              <div key={m.id} className={`flex items-center gap-1.5 ${i > 0 ? "mt-1.5 pt-1.5 border-t border-[var(--border)]" : ""}`}>
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: m.post.blogger.color }}
+                />
+                <span className="font-mono font-bold">@{m.post.blogger.xUsername}</span>
+                {m.sentiment && (
+                  <span
+                    className="text-xs px-1 rounded"
+                    style={{ color: m.sentiment === "bullish" ? "#ef4444" : "#22c55e" }}
+                  >
+                    {m.sentiment === "bullish" ? "看多" : "看空"}
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
