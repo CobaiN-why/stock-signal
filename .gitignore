@@ -44,8 +44,6 @@ next-env.d.ts
 
 /src/generated/prisma
 
-# prisma config (auto-generated, not needed for build)
-prisma.config.ts
 
 # claude skills/plugins (installed per-environment)
 /.agents/

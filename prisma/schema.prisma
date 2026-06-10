@@ -226,6 +226,51 @@ model BloggerCredibility {
   @@map("blogger_credibility")
 }
 
+// ── Xiaohongshu (小红书) — separate pipeline, independent from Twitter ──
+
+model XhsBlogger {
+  id            String    @id @default(uuid())
+  xhsId         String    @unique @map("xhs_id")
+  nickname      String    @map("nickname")
+  avatar        String?
+  lastFetchedAt DateTime? @map("last_fetched_at")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  posts         XhsPost[]
+
+  @@map("xhs_bloggers")
+}
+
+model XhsPost {
+  id           String   @id @default(uuid())
+  bloggerId    String   @map("blogger_id")
+  xhsPostId    String   @unique @map("xhs_post_id")
+  title        String   @default("")
+  content      String
+  postedAt     DateTime @map("posted_at")
+  url          String
+  likeCount    Int      @default(0) @map("like_count")
+  collectCount Int      @default(0) @map("collect_count")
+  commentCount Int      @default(0) @map("comment_count")
+  fetchedAt    DateTime @default(now()) @map("fetched_at")
+
+  blogger        XhsBlogger         @relation(fields: [bloggerId], references: [id])
+  authorComments XhsAuthorComment[]
+
+  @@map("xhs_posts")
+}
+
+model XhsAuthorComment {
+  id        String   @id @default(uuid())
+  postId    String   @map("post_id")
+  content   String
+  postedAt  DateTime @map("posted_at")
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+  post      XhsPost  @relation(fields: [postId], references: [id])
+
+  @@map("xhs_author_comments")
+}
+
 model OpinionBacktest {
   id           String   @id @default(uuid())
   postStockId  String?  @map("post_stock_id")
