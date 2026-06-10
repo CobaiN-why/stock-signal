@@ -220,8 +220,10 @@ export default function PriceChart({
     // Reuse existing markers plugin, or create one (createSeriesMarkers
     // always creates a NEW layer — only call it once per chart)
     if (markersRef.current) {
+      console.log('[PriceChart] REUSING markers plugin, setting', markers.length, 'markers');
       markersRef.current.setMarkers(markers);
     } else {
+      console.log('[PriceChart] CREATING new markers plugin with', markers.length, 'markers');
       markersRef.current = createSeriesMarkers(candleSeries, markers);
     }
 
