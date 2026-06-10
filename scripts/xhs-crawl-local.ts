@@ -1,6 +1,7 @@
 /**
  * Xiaohongshu local crawler — runs on Mac, outputs JSON, uploads to server.
- * Cron: 0 11,14,0 * * * node --import dotenv/config --import tsx scripts/xhs-crawl-local.ts
+ * Cron (add to crontab -e):
+ *   0 11,14,0 * * * cd ~/workspace/stock-signal && SERVER_PASSWORD='...' npx tsx scripts/xhs-crawl-local.ts >> /tmp/xhs-cron.log 2>&1
  */
 
 import { execSync } from "child_process";
