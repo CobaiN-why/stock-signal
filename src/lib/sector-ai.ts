@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { getAiFallbackModel, getAiProvider } from "@/lib/ai";
 import { normalizeMarket, type Market } from "@/lib/markets";
 import type { StockMention } from "@/lib/stock-identifier";
+import { fetchStockProfile } from "@/lib/market-data";
+import type { StockProfile } from "@/lib/market-data/types";
 
 export type Sentiment = "bullish" | "bearish";
 
@@ -327,6 +329,7 @@ async function loadStockProfiles(
       companyName: true,
       profileData: true,
       assetType: true,
+      id: true,
     },
   });
 
@@ -339,8 +342,33 @@ async function loadStockProfiles(
       parts.push(stock.companyName);
     }
 
-    // Profile data (Finnhub/Twelve Data for US, akshare for CN)
-    const profile = stock.profileData as Record<string, unknown> | null;
+    // Profile data from DB
+    let profile = stock.profileData as Record<string, unknown> | null;
+
+    // If no profile in DB, try to fetch on-the-fly
+    if (!profile && stock.market === "US") {
+      try {
+        const fetched = await fetchStockProfile({
+          ticker: stock.ticker,
+          market: normalizeMarket(stock.market),
+        });
+        if (fetched) {
+          // Save to DB for future use
+          await prisma.stock.update({
+            where: { id: stock.id },
+            data: {
+              profileData: fetched as object,
+              profileUpdatedAt: new Date(),
+              companyName: stock.companyName || fetched.shortName || fetched.longName,
+            },
+          }).catch(() => {});
+          profile = fetched as unknown as Record<string, unknown>;
+        }
+      } catch {
+        // fire-and-forget, don't block if fetch fails
+      }
+    }
+
     if (profile) {
       const industry =
         (profile.industry as string) || (profile.sector as string);
