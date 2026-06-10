@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createChart,
   createSeriesMarkers,
@@ -8,6 +8,8 @@ import {
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
   type Time,
 } from "lightweight-charts";
 import type { Market } from "@/lib/markets";
@@ -70,6 +72,38 @@ const COLORS = {
   volumeDown: "rgba(239, 83, 80, 0.4)",
 };
 
+type DailyMentionGroup = {
+  bull: number;
+  bear: number;
+  neutral: number;
+  mentions: Mention[];
+};
+
+function dateKey(value: string) {
+  return value.slice(0, 10);
+}
+
+function resolveTradingDate(date: string, tradingDates: string[]) {
+  if (tradingDates.length === 0) return null;
+
+  let left = 0;
+  let right = tradingDates.length - 1;
+  let nextIndex = tradingDates.length;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (tradingDates[mid] >= date) {
+      nextIndex = mid;
+      right = mid - 1;
+    } else {
+      left = mid + 1;
+    }
+  }
+
+  if (nextIndex < tradingDates.length) return tradingDates[nextIndex];
+  return tradingDates[tradingDates.length - 1];
+}
+
 // ── Component ──
 
 export default function PriceChart({
@@ -82,9 +116,8 @@ export default function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const markersRef = useRef<any>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [data, setData] = useState<StockDetail | null>(null);
-  const [hoveredMention, setHoveredMention] = useState<Mention | null>(null);
   const [tooltipMentions, setTooltipMentions] = useState<Mention[]>([]);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   // ── Data fetching ──
@@ -194,20 +227,34 @@ export default function PriceChart({
     });
     volumeSeries.setData(volumeData);
 
-    // ── Daily sentiment markers: one per day, arrow by dominant view ──
-    const byDate = new Map<string, { bull: number; bear: number }>();
+    const tradingDates = candleData.map((p) => p.time as string);
+
+    // ── Daily sentiment markers: one per trading day, arrow by dominant view ──
+    const byDate = new Map<string, DailyMentionGroup>();
+    const seenPosts = new Set<string>();
     for (const m of data.mentions) {
       if (selectedBlogger && m.post.blogger.xUsername !== selectedBlogger) continue;
-      const d = m.post.postedAt.slice(0, 10);
-      if (!byDate.has(d)) byDate.set(d, { bull: 0, bear: 0 });
+
+      const postKey = m.post.id;
+      if (seenPosts.has(postKey)) continue;
+      seenPosts.add(postKey);
+
+      const d = resolveTradingDate(dateKey(m.post.postedAt), tradingDates);
+      if (!d) continue;
+
+      if (!byDate.has(d)) {
+        byDate.set(d, { bull: 0, bear: 0, neutral: 0, mentions: [] });
+      }
       const entry = byDate.get(d)!;
+      entry.mentions.push(m);
       if (m.sentiment === "bullish") entry.bull++;
       else if (m.sentiment === "bearish") entry.bear++;
+      else entry.neutral++;
     }
 
-    const markers: { time: Time; position: "belowBar"; color: string; shape: "arrowUp" | "arrowDown" | "circle"; text: string }[] = [];
-    for (const [date, { bull, bear }] of byDate) {
-      const total = bull + bear;
+    const markers: SeriesMarker<Time>[] = [];
+    for (const [date, { bull, bear, mentions }] of byDate) {
+      const total = mentions.length;
       markers.push({
         time: date as Time,
         position: "belowBar",
@@ -216,19 +263,36 @@ export default function PriceChart({
         text: total > 1 ? String(total) : "",
       });
     }
+    markers.sort((a, b) => String(a.time).localeCompare(String(b.time)));
 
-    // Destroy old marker layer before creating new one
-    if (markersRef.current) { try { markersRef.current.detach(); } catch {} }
     markersRef.current = createSeriesMarkers(candleSeries, markers);
 
     // ── Click handler ──
     chart.subscribeClick((param) => {
       if (!param.time || !data) return;
       const clickDate = param.time as string;
-      const mention = data.mentions.find(
-        (m) => m.post.postedAt.slice(0, 10) === clickDate
-      );
+      const mention = byDate.get(clickDate)?.mentions[0];
       if (mention) onMentionClick(mention.post.id);
+    });
+
+    chart.subscribeCrosshairMove((param) => {
+      if (!param.time || !param.point) {
+        setTooltipMentions([]);
+        return;
+      }
+
+      const mentions = byDate.get(param.time as string)?.mentions ?? [];
+      if (mentions.length === 0) {
+        setTooltipMentions([]);
+        return;
+      }
+
+      setTooltipMentions(mentions);
+      const containerWidth = chartContainerRef.current?.clientWidth ?? width;
+      setTooltipPos({
+        x: Math.min(param.point.x + 12, Math.max(0, containerWidth - 312)),
+        y: Math.max(8, param.point.y - 16),
+      });
     });
 
     // ── Resize handler ──
@@ -374,6 +438,9 @@ export default function PriceChart({
                     {m.sentiment === "bullish" ? "看多" : "看空"}
                   </span>
                 )}
+                <span className="text-[var(--text-secondary)]">
+                  {associationLabel(m)}
+                </span>
               </div>
             ))}
           </div>
