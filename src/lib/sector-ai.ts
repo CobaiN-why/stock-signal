@@ -160,13 +160,21 @@ Determine BULLISH vs BEARISH for each stock AND each sector. They CAN differ —
 - "政策继续加码，新能源车渗透率还有空间，电池链基本面在修复" → bullish
 - "光伏价格战还没结束，库存压力很大，行业盈利继续下修" → bearish
 
-### 4. Confidence
+### 4. When NOT to map
+Do NOT output a sector if:
+- The post is purely a question with no analysis or opinion (e.g., "What caused X to go up 3660%?" — no thesis)
+- The stock mentioned has an obviously anomalous single-day move (>500%) — these are corporate actions (reverse splits, ticker changes), not real trading gains
+- The stock is only mentioned in passing with no context about its business or sector
+- The author clearly has no idea what the company does
+- If both stock_sentiment and sector_sentiment are "unknown" AND confidence would be below 0.5, omit the entry entirely
+
+### 5. Confidence
 - 0.85-0.95: explicit sector/stock discussion with clear sentiment
 - 0.65-0.85: clear discussion but indirect mapping or mixed signals
 - 0.45-0.65: indirect mention, cross-market analogy, or weak signal
 - Do NOT use confidence above 0.95 or below 0.45. Default to 0.55 if very uncertain.
 
-### 5. Output format
+### 6. Output format
 Return STRICT JSON array. Each item:
 {
   "ticker": "NVDA",           // stock ticker (OMIT for direct sector mentions)
@@ -226,6 +234,16 @@ function parseAnalysisResult(
 
     const stockSentiment = normalizeSentiment(item.stock_sentiment);
     const sectorSentiment = normalizeSentiment(item.sector_sentiment);
+
+    // Skip entries where both sentiments are unknown AND confidence is low
+    // (pure questions, passing mentions with no analytical value)
+    if (
+      stockSentiment === "unknown" &&
+      sectorSentiment === "unknown" &&
+      rawConfidence < 0.55
+    ) {
+      continue;
+    }
 
     results.push({
       ticker: item.ticker?.trim() || undefined,
