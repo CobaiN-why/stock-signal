@@ -129,6 +129,9 @@ If the post discusses a sector/theme directly (e.g. "半导体爆发", "新能�
 For each detected stock:
 - **US stocks**: Identify the company's core business → map to the most relevant A-share sector.
   - Example: NVDA → semiconductors, TSLA → new_energy
+  - **CRITICAL**: If you don't actually know what the company does, DO NOT guess or
+    fabricate company details. Set stock_sentiment to "unknown", confidence to 0.45,
+    and evidence to "无法确认该公司业务". Never invent company names or industries.
 - **CN stocks (6-digit codes starting with 00/30/60/68)**: Identify the company → map to its A-share sector.
 - **CN ETFs (6-digit codes starting with 51/15/58)**: Map directly. e.g. 512760 (芯片ETF) → semiconductors
 - **assetType "ETF"** means it's already an ETF — map it directly to its sector.
