@@ -68,10 +68,17 @@ export async function analyzeSectorsAndSentiment(
 
   if (cnSectors.length === 0) return [];
 
+  // Look up company profiles from DB so AI has ground-truth company info
+  const stockProfiles = await loadStockProfiles(stockMentions);
+
   const tickersForPrompt = stockMentions.map((m) => ({
     ticker: m.ticker,
     market: m.market,
     assetType: m.assetType,
+    // Include resolved company info if available
+    ...(stockProfiles.get(`${m.market}:${m.ticker}`) && {
+      companyInfo: stockProfiles.get(`${m.market}:${m.ticker}`),
+    }),
   }));
 
   try {
@@ -87,7 +94,7 @@ export async function analyzeSectorsAndSentiment(
             "A股板块候选:",
             JSON.stringify(cnSectors),
             "",
-            "检测到的股票:",
+            "检测到的股票（含已查询的公司信息，优先使用而非猜测）:",
             JSON.stringify(tickersForPrompt),
             "",
             "帖子:",
@@ -127,11 +134,13 @@ If the post discusses a sector/theme directly (e.g. "半导体爆发", "新能�
 
 ### 2. Stock → sector mapping
 For each detected stock:
-- **US stocks**: Identify the company's core business → map to the most relevant A-share sector.
+- **US stocks**: Use the companyInfo field provided in the input (queried from our database).
+  It contains the real company name, industry, and business description.
+  Do NOT override or guess -- ALWAYS prefer the provided companyInfo over your own knowledge.
   - Example: NVDA → semiconductors, TSLA → new_energy
-  - **CRITICAL**: If you don't actually know what the company does, DO NOT guess or
-    fabricate company details. Set stock_sentiment to "unknown", confidence to 0.45,
-    and evidence to "无法确认该公司业务". Never invent company names or industries.
+  - **If companyInfo is missing for a stock**: you likely do not know this company well enough.
+    Set stock_sentiment to "unknown", confidence to 0.45, and evidence to
+    "无法确认该公司业务". Never invent company names or industries.
 - **CN stocks (6-digit codes starting with 00/30/60/68)**: Identify the company → map to its A-share sector.
 - **CN ETFs (6-digit codes starting with 51/15/58)**: Map directly. e.g. 512760 (芯片ETF) → semiconductors
 - **assetType "ETF"** means it's already an ETF — map it directly to its sector.
@@ -290,4 +299,67 @@ function normalizeSentiment(
   if (v === "bullish" || v === "看多") return "bullish";
   if (v === "bearish" || v === "看空") return "bearish";
   return "unknown";
+}
+
+/**
+ * Load company profiles from DB for each mentioned stock.
+ * Returns a Map of "market:ticker" → company info string for the AI prompt.
+ * This prevents AI hallucinations when it doesn't know a company.
+ */
+async function loadStockProfiles(
+  mentions: StockMention[]
+): Promise<Map<string, string>> {
+  const profiles = new Map<string, string>();
+
+  if (mentions.length === 0) return profiles;
+
+  // Batch query all mentioned stocks
+  const conditions = mentions.map((m) => ({
+    market: m.market,
+    ticker: m.ticker.toUpperCase(),
+  }));
+
+  const stocks = await prisma.stock.findMany({
+    where: { OR: conditions },
+    select: {
+      ticker: true,
+      market: true,
+      companyName: true,
+      profileData: true,
+      assetType: true,
+    },
+  });
+
+  for (const stock of stocks) {
+    const key = `${stock.market}:${stock.ticker}`;
+    const parts: string[] = [];
+
+    // Company name from DB
+    if (stock.companyName) {
+      parts.push(stock.companyName);
+    }
+
+    // Profile data (Finnhub/Twelve Data for US, akshare for CN)
+    const profile = stock.profileData as Record<string, unknown> | null;
+    if (profile) {
+      const industry =
+        (profile.industry as string) || (profile.sector as string);
+      const desc = profile.description as string;
+      const shortDesc = desc?.split(".")[0]; // first sentence only
+
+      if (industry) parts.push(`行业: ${industry}`);
+      if (shortDesc && shortDesc !== industry) parts.push(shortDesc.slice(0, 120));
+    }
+
+    // ETF hint
+    if (stock.assetType === "ETF") {
+      parts.push("[这是一只ETF]");
+    }
+
+    if (parts.length > 0) {
+      profiles.set(key, parts.join(" | "));
+    }
+  }
+
+  return profiles;
 }
