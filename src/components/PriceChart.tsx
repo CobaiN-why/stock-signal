@@ -214,19 +214,29 @@ export default function PriceChart({
     }[] = [];
 
     for (const [date, mentions] of mentionsByDate) {
-      const unique = new Map<string, Mention>();
-      for (const m of mentions) unique.set(m.post.blogger.xUsername, m);
-      const bloggers = Array.from(unique.values());
+      // Dedup: one entry per (blogger + post) to avoid double-counting
+      // a single post that mentions multiple stocks
+      const seen = new Set<string>();
+      const bloggers: { username: string; sentiment: string | null; color: string }[] = [];
+      for (const m of mentions) {
+        const key = `${m.post.blogger.xUsername}:${m.post.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        bloggers.push({
+          username: m.post.blogger.xUsername,
+          sentiment: m.sentiment,
+          color: m.post.blogger.color,
+        });
+      }
 
-      const bullCount = bloggers.filter((m) => m.sentiment === "bullish").length;
-      const bearCount = bloggers.filter((m) => m.sentiment === "bearish").length;
+      const bullCount = bloggers.filter((b) => b.sentiment === "bullish").length;
+      const bearCount = bloggers.filter((b) => b.sentiment === "bearish").length;
       const total = bloggers.length;
 
       let shape: MarkerShape = "circle";
       let color = "#9ca3af";
       if (bullCount > bearCount) { shape = "arrowUp"; color = "#ef4444"; }
       else if (bearCount > bullCount) { shape = "arrowDown"; color = "#22c55e"; }
-      // tie or all unknown → circle, gray
 
       markers.push({
         time: date as Time,
@@ -250,9 +260,14 @@ export default function PriceChart({
       const dateStr = param.time as string;
       const mentions = mentionsByDate.get(dateStr);
       if (mentions && mentions.length > 0) {
-        const unique = new Map<string, Mention>();
-        for (const m of mentions) unique.set(m.post.blogger.xUsername, m);
-        const list = Array.from(unique.values());
+        const seen = new Set<string>();
+        const list: Mention[] = [];
+        for (const m of mentions) {
+          const key = `${m.post.blogger.xUsername}:${m.post.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          list.push(m);
+        }
         setTooltipMentions(list);
         setHoveredMention(list[0]);
         const w = container.clientWidth;
