@@ -109,7 +109,7 @@ export async function scrapeUserPosts(
 
     const url = `${XHS_BASE}/user/profile/${userId}`;
     console.log(`[XHS] Navigating to ${url}`);
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
 
     // Simulate human: wait and scroll
     await sleep(rand(2000, 4000));
@@ -182,7 +182,7 @@ export async function scrapeUserPosts(
       await sleep(rand(1500, 3000));
 
       try {
-        await page.goto(post.url, { waitUntil: "networkidle", timeout: 20000 });
+        await page.goto(post.url, { waitUntil: "domcontentloaded", timeout: 30000 });
         await sleep(rand(1000, 2000));
 
         // Extract detailed post info
