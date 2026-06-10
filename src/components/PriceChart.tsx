@@ -62,6 +62,9 @@ interface Props {
   onMentionClick: (postId: string) => void;
 }
 
+// ── Singleton guard: ensure only one chart instance renders markers ──
+let activeChartInstance = 0;
+
 // ── Constants ──
 
 const COLORS = {
@@ -103,16 +106,22 @@ export default function PriceChart({
   useEffect(() => {
     if (!chartContainerRef.current || !data || data.prices.length === 0) return;
 
-    // Cleanup previous chart
+    // Increment instance counter — only the latest instance creates markers
+    const instanceId = ++activeChartInstance;
+
+    // Cleanup previous chart — both via ref and DOM-level
     if (chartRef.current) {
-      chartRef.current.remove();
+      try { chartRef.current.remove(); } catch {}
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
       markersRef.current = null;
     }
-
+    // Aggressive: clear any stale canvases from the container
     const container = chartContainerRef.current;
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
     const width = container.clientWidth;
 
     const chart = createChart(container, {
@@ -252,11 +261,13 @@ export default function PriceChart({
     const deduped = markers.filter(
       (m, i) => i === 0 || m.time !== markers[i - 1].time
     );
-    // Reuse or create markers plugin to avoid duplicates
-    if (markersRef.current) {
-      markersRef.current.setMarkers(deduped);
-    } else {
-      markersRef.current = createSeriesMarkers(candleSeries, deduped);
+    // Only render markers on the latest chart instance
+    if (instanceId === activeChartInstance) {
+      if (markersRef.current) {
+        markersRef.current.setMarkers(deduped);
+      } else {
+        markersRef.current = createSeriesMarkers(candleSeries, deduped);
+      }
     }
 
     // ── Crosshair: tooltip shows all mentions for that date ──
