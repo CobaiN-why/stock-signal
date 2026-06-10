@@ -247,12 +247,17 @@ export default function PriceChart({
         size: 2,
       });
     }
-    // Final dedup: ensure at most one marker per time value
+    // One marker per day max
     markers.sort((a, b) => (a.time < b.time ? -1 : 1));
     const deduped = markers.filter(
       (m, i) => i === 0 || m.time !== markers[i - 1].time
     );
-    markersRef.current = createSeriesMarkers(candleSeries, deduped);
+    // Reuse or create markers plugin to avoid duplicates
+    if (markersRef.current) {
+      markersRef.current.setMarkers(deduped);
+    } else {
+      markersRef.current = createSeriesMarkers(candleSeries, deduped);
+    }
 
     // ── Crosshair: tooltip shows all mentions for that date ──
     chart.subscribeCrosshairMove((param) => {
