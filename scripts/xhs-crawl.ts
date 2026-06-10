@@ -6,12 +6,10 @@
  */
 
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../src/generated/prisma/client/index.js";
 import { scrapeUserPosts, closeBrowser } from "../src/lib/xiaohongshu/scraper.js";
 
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL,
-});
+const prisma = new PrismaClient();
 
 async function main() {
   console.log(`[XHS] Crawl started at ${new Date().toISOString()}`);
