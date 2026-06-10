@@ -63,7 +63,9 @@ export async function GET(req: NextRequest) {
           },
         },
         postStocks: {
-          include: {
+          select: {
+            mentionType: true,
+            sentiment: true,
             stock: {
               select: {
                 ticker: true,

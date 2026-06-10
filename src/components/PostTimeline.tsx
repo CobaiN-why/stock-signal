@@ -94,7 +94,7 @@ interface Post {
     color: string;
     avatarUrl: string | null;
   };
-  postStocks: { stock: { ticker: string; market: string } }[];
+  postStocks: { sentiment: string | null; stock: { ticker: string; market: string } }[];
   postSectors: {
     confidence: string | number;
     evidence: string;
@@ -171,7 +171,7 @@ export default function PostTimeline({
       market: ps.stock.market,
       assetType: "STOCK",
       associationType: "direct_stock",
-      sentiment: null,
+      sentiment: ps.sentiment ?? null,
     }));
 
   const sectorMappings = (post: Post) =>
@@ -240,11 +240,28 @@ export default function PostTimeline({
                 {stockMappings(post).map((stock) => (
                   <span
                     key={`${stock.market}:${stock.ticker}`}
-                    className="text-xs bg-[var(--border)] rounded px-1.5 py-0.5 font-mono"
-                    title={stock.assetType === "ETF" ? "直接 ETF" : "直接个股"}
+                    className={`text-xs rounded px-1.5 py-0.5 font-mono ${
+                      stock.sentiment === "bullish"
+                        ? "bg-red-100 text-red-700"
+                        : stock.sentiment === "bearish"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-[var(--border)]"
+                    }`}
+                    title={`${stock.assetType === "ETF" ? "ETF" : "个股"}${
+                      stock.sentiment
+                        ? stock.sentiment === "bullish"
+                          ? " · 看多"
+                          : " · 看空"
+                        : ""
+                    }`}
                   >
                     {stock.market === "US" ? "$" : ""}{stock.ticker}
                     {stock.assetType === "ETF" ? " ETF" : ""}
+                    {stock.sentiment === "bullish"
+                      ? " ↑"
+                      : stock.sentiment === "bearish"
+                        ? " ↓"
+                        : ""}
                   </span>
                 ))}
                 {sectorMappings(post).map((sector) => (
