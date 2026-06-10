@@ -40,9 +40,11 @@ function rand(min: number, max: number) {
 
 let browser: Browser | null = null;
 
+const PERSISTENT_DIR = "/tmp/xhs-browser-data";
+
 export async function launchBrowser(): Promise<Browser> {
   if (browser?.isConnected()) return browser;
-  browser = await chromium.launch({
+  const context = await chromium.launchPersistentContext(PERSISTENT_DIR, {
     headless: true,
     channel: "chrome",
     args: [
@@ -52,7 +54,11 @@ export async function launchBrowser(): Promise<Browser> {
       "--disable-dev-shm-usage",
       "--disable-gpu",
     ],
+    viewport: { width: 1440, height: 900 },
   });
+  // Wrap context as browser for compatibility
+  (context as any)._isPersistent = true;
+  browser = context as unknown as Browser;
   return browser;
 }
 
@@ -106,30 +112,32 @@ export async function scrapeUserPosts(
   since: Date | null
 ): Promise<XhsScrapedPost[]> {
   const browser = await launchBrowser();
-  const context = browser.contexts()[0] || (await browser.newContext());
-  const page = await context.newPage();
+  // Persistent context: browser IS the context
+  const context = (browser as any)._isPersistent ? browser as any : browser.contexts()[0];
+  const page = context.pages()[0] || await context.newPage();
 
   try {
-    await setupPage(page);
-    // Hide automation signals
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => false });
-      (window as any).chrome = { runtime: {} };
-    });
-    await loginWithCookies(page);
+    // Skip cookie setup — persistent context already has login state
+    // Just ensure we're on the right page
+
+    // Visit homepage first to establish session (mimics real browsing)
+    console.log(`[XHS] Visiting homepage first...`);
+    await page.goto(XHS_BASE, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await sleep(rand(2000, 3000));
 
     const url = `${XHS_BASE}/user/profile/${userId}`;
     console.log(`[XHS] Navigating to ${url}`);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(url, { waitUntil: "load", timeout: 60000 });
 
     // Simulate human: wait and scroll
     await sleep(rand(2000, 4000));
 
     // Scroll a few times to load posts
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 12; i++) {
       await page.mouse.wheel(0, rand(300, 600));
-      await sleep(rand(800, 1500));
+      await sleep(rand(800, 1200));
     }
+    await sleep(2000); // wait for lazy-rendered titles
 
     // Debug: check page state
     const pageTitle = await page.title();
@@ -144,7 +152,7 @@ export async function scrapeUserPosts(
     await sleep(rand(1000, 2000));
 
     // Extract post list from the page
-    const posts = await page.evaluate(() => {
+    const posts = await page.evaluate((userId: string) => {
       const items: {
         postId: string;
         title: string;
@@ -153,112 +161,64 @@ export async function scrapeUserPosts(
         likeCount: number;
       }[] = [];
 
-      // Find all post links on the profile page
-      const links = document.querySelectorAll('a[href*="/explore/"]');
       const seen = new Set<string>();
+      // XHS profile post links: /user/profile/{userId}/{postId}?xsec_token=...
+      const links = document.querySelectorAll(`a[href*="/user/profile/${userId}/"]`);
 
       links.forEach((link) => {
         const href = (link as HTMLAnchorElement).href;
-        const match = href.match(/\/explore\/([a-f0-9]+)/);
+        const match = href.match(/\/user\/profile\/[^/]+\/([a-f0-9]+)/);
         if (!match) return;
         const postId = match[1];
         if (seen.has(postId)) return;
         seen.add(postId);
 
-        // Try to find parent note card for title/content
-        const card = link.closest('[class*="note"]') || link.closest('[class*="card"]') || link.parentElement;
-        const title = card?.querySelector('[class*="title"]')?.textContent?.trim() || "";
-        const desc = card?.querySelector('[class*="desc"]')?.textContent?.trim() || "";
+        // Try textContent from link, then from parent elements
+        let title = link.textContent?.trim() || "";
+        if (!title) {
+          const parent = link.closest('section, [class*="note"], [class*="card"], div');
+          title = parent?.textContent?.trim() || "";
+          // Extract just the first line as title
+          title = title.split('\n')[0]?.trim() || "";
+        }
+        if (!title) return; // skip empty titles
+
+        // Try to find parent note card for like count
+        const card = link.closest('[class*="note"]') || link.closest('section') || link.parentElement?.parentElement;
         const likeEl = card?.querySelector('[class*="like"] span, [class*="count"]');
 
         items.push({
           postId,
           title,
-          content: desc || title,
-          url: href,
+          content: title, // use title as content since list view doesn't show full content
+          url: `https://www.xiaohongshu.com/explore/${postId}`,
           likeCount: likeEl ? parseInt(likeEl.textContent?.replace(/[^0-9]/g, "") || "0") : 0,
         });
       });
 
       return items;
-    });
+    }, userId);
 
     console.log(`[XHS] Found ${posts.length} posts on profile page`);
 
     // Filter: only new posts after `since`
     const results: XhsScrapedPost[] = [];
 
+    // Extract content directly from profile page (don't visit detail pages)
+    // Xiaohongshu blocks detail page access for automation
     for (const post of posts) {
-      // Visit each post detail page to get full content + timestamp + author comments
-      await sleep(rand(1500, 3000));
-
-      try {
-        await page.goto(post.url, { waitUntil: "domcontentloaded", timeout: 30000 });
-        await sleep(rand(1000, 2000));
-
-        // Extract detailed post info
-        const detail = await page.evaluate(() => {
-          // Title
-          const titleEl = document.querySelector('[class*="title"], #detail-title');
-          const title = titleEl?.textContent?.trim() || "";
-
-          // Content body
-          const descEl = document.querySelector('[class*="desc"], #detail-desc, [class*="note-text"]');
-          const content = descEl?.textContent?.trim() || "";
-
-          // Date
-          const dateEl = document.querySelector('[class*="date"], [class*="time"], time');
-          const dateStr = dateEl?.textContent?.trim() || dateEl?.getAttribute("datetime") || "";
-
-          // Stats
-          const likeEl = document.querySelector('[class*="like"] span, [class*="like-count"]');
-          const collectEl = document.querySelector('[class*="collect"] span, [class*="collect-count"]');
-          const commentEl = document.querySelector('[class*="comment"] span, [class*="comment-count"]');
-          const likeCount = likeEl ? parseInt(likeEl.textContent?.replace(/[^0-9]/g, "") || "0") : 0;
-          const collectCount = collectEl ? parseInt(collectEl.textContent?.replace(/[^0-9]/g, "") || "0") : 0;
-          const commentCount = commentEl ? parseInt(commentEl.textContent?.replace(/[^0-9]/g, "") || "0") : 0;
-
-          // Author comments (博主在评论区的回复)
-          const authorComments: { content: string; postedAt: string }[] = [];
-          const commentItems = document.querySelectorAll('[class*="comment-item"]');
-          commentItems.forEach((item) => {
-            const isAuthor = item.querySelector('[class*="author-tag"], [class*="author"]');
-            if (!isAuthor) return;
-            const commentContent = item.querySelector('[class*="comment-content"], [class*="content"]')?.textContent?.trim();
-            const commentDate = item.querySelector('[class*="date"], time')?.textContent?.trim() || "";
-            if (commentContent) {
-              authorComments.push({ content: commentContent, postedAt: commentDate });
-            }
-          });
-
-          return { title, content, dateStr, likeCount, collectCount, commentCount, authorComments };
-        });
-
-        // Parse the date
-        const postedAt = parseXhsDate(detail.dateStr);
-
-        // Skip if older than since
-        if (since && postedAt <= since) {
-          console.log(`[XHS] Post ${post.postId} is older than since, stopping`);
-          break;
-        }
-
-        results.push({
-          postId: post.postId,
-          title: detail.title || post.title,
-          content: detail.content || post.content,
-          postedAt: postedAt.toISOString(),
-          url: post.url,
-          likeCount: detail.likeCount || post.likeCount,
-          collectCount: detail.collectCount,
-          commentCount: detail.commentCount,
-          authorComments: detail.authorComments,
-        });
-
-        console.log(`[XHS] Scraped post: ${detail.title || post.postId} (${detail.authorComments.length} author comments)`);
-      } catch (err) {
-        console.warn(`[XHS] Failed to scrape post ${post.postId}: ${String(err).slice(0, 100)}`);
-      }
+      results.push({
+        postId: post.postId,
+        title: post.title,
+        content: post.content,
+        postedAt: new Date().toISOString(), // timestamp not available from list view
+        url: post.url,
+        likeCount: post.likeCount,
+        collectCount: 0,
+        commentCount: 0,
+        authorComments: [],
+      });
+      console.log(`[XHS] Scraped post from list: ${post.title || post.postId}`);
     }
 
     return results;
