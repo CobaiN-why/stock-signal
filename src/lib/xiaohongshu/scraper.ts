@@ -44,8 +44,14 @@ export async function launchBrowser(): Promise<Browser> {
   if (browser?.isConnected()) return browser;
   browser = await chromium.launch({
     headless: true,
-    channel: "chrome",  // use system Chrome, no need to download Chromium
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
+    channel: "chrome",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+    ],
   });
   return browser;
 }
@@ -105,6 +111,11 @@ export async function scrapeUserPosts(
 
   try {
     await setupPage(page);
+    // Hide automation signals
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+      (window as any).chrome = { runtime: {} };
+    });
     await loginWithCookies(page);
 
     const url = `${XHS_BASE}/user/profile/${userId}`;
