@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
     try {
       for (let round = 0; round < maxRounds; round++) {
         // Fetch without since_date to get max available history
-        const posts = await postSource.fetchUserPosts(blogger.xUsername);
+        // Fetch tweets from past month with cursor pagination (up to 30 pages = ~600 tweets)
+        const oneMonthAgo = new Date(Date.now() - 30 * 86400000);
+        const posts = await postSource.fetchUserPosts(blogger.xUsername, oneMonthAgo, 30);
 
         // If no posts at all, this blogger is exhausted
         if (posts.length === 0) {
