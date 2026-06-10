@@ -44,7 +44,8 @@ export async function launchBrowser(): Promise<Browser> {
   if (browser?.isConnected()) return browser;
   browser = await chromium.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    channel: "chrome",  // use system Chrome, no need to download Chromium
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
   });
   return browser;
 }
