@@ -112,7 +112,7 @@ export async function scrapeUserPosts(
   try {
     await setupPage(page);
     // Hide automation signals
-    await page.evaluateOnNewDocument(() => {
+    await page.addInitScript(() => {
       Object.defineProperty(navigator, "webdriver", { get: () => false });
       (window as any).chrome = { runtime: {} };
     });
