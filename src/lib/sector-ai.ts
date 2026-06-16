@@ -284,12 +284,11 @@ function parseAnalysisResult(
     const stockSentiment = normalizeSentiment(item.stock_sentiment);
     const sectorSentiment = normalizeSentiment(item.sector_sentiment);
 
-    // Skip only when AI has zero useful signal:
-    // no sentiment on stock or sector AND very unconfident mapping
+    // Only skip truly useless entries (AI admits complete ignorance)
     if (
       stockSentiment === "unknown" &&
       sectorSentiment === "unknown" &&
-      rawConfidence <= 0.5
+      rawConfidence < 0.45
     ) {
       continue;
     }
@@ -405,8 +404,19 @@ async function loadStockProfiles(
       const desc = profile.description as string;
       const shortDesc = desc?.split(".")[0]; // first sentence only
 
-      if (industry) parts.push(`行业: ${industry}`);
-      if (shortDesc && shortDesc !== industry) parts.push(shortDesc.slice(0, 120));
+      // Only include industry if it's meaningful (not "N/A")
+      if (industry && industry !== "N/A" && industry !== "n/a") {
+        parts.push(`行业: ${industry}`);
+      }
+      if (shortDesc && shortDesc.length > 10) {
+        parts.push(shortDesc.slice(0, 120));
+      }
+    }
+
+    // If we have nothing useful (empty profile or all N/A),
+    // DON'T add companyInfo — let the AI infer from post context
+    if (parts.length === 0 && stock.companyName && stock.companyName.length > 1) {
+      parts.push(stock.companyName);
     }
 
     // ETF hint
