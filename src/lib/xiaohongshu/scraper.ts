@@ -82,9 +82,9 @@ export async function scrapeUserPosts(
   const allNotes: XhsApiNote[] = [];
   let hasMore = true;
 
-  page.on("response", async (resp) => {
+  page.on("response", async (resp: any) => {
     const url = resp.url();
-    if (url.includes("user_posted") && url.includes(`user_id=${userId}`)) {
+    if (url.includes("user_posted") && url.includes("user_id=" + userId)) {
       try {
         const body = await resp.text();
         const d = JSON.parse(body);
