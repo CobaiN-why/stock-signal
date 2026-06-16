@@ -136,14 +136,14 @@ If the post discusses a sector/theme directly (e.g. "半导体爆发", "新能�
 
 ### 2. Stock → sector mapping
 For each detected stock:
-- **US stocks**: The companyInfo field contains real-time lookup data (Finnhub + Yahoo Finance).
+- **US stocks**: The companyInfo field contains real-time lookup data (Finnhub).
   When present, use it as ground truth for the company's industry.
   - Example: NVDA → semiconductors, TSLA → new_energy
-  - **If companyInfo is missing or unreliable**: Infer the company's business from the POST CONTENT.
-    Look for keywords like "semiconductor", "photonics", "chip", "AI", "laser", "battery" etc.
-    The post itself is often the best signal for what industry a stock belongs to.
-    Set confidence=0.55 (slightly lower due to inference vs. confirmed data),
-    evidence="从帖子内容推断行业". Never invent company names.
+  - **If companyInfo is missing or unreliable**: Use YOUR OWN KNOWLEDGE of the stock to identify
+    what company it represents and which industry it belongs to. Also infer from the POST CONTEXT.
+    Your training data contains information about most publicly traded companies.
+    Set confidence=0.55 and evidence=what you know about the company.
+    Example: SIVE = Sivers Semiconductors → semiconductors.
 - **CN stocks (6-digit codes starting with 00/30/60/68)**: Identify the company → map to its A-share sector.
 - **CN ETFs (6-digit codes starting with 51/15/58)**: Map directly. e.g. 512760 (芯片ETF) → semiconductors
 - **assetType "ETF"** means it's already an ETF — map it directly to its sector.
