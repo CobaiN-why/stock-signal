@@ -136,13 +136,14 @@ If the post discusses a sector/theme directly (e.g. "半导体爆发", "新能�
 
 ### 2. Stock → sector mapping
 For each detected stock:
-- **US stocks**: Use the companyInfo field provided in the input (queried from our database).
-  It contains the real company name, industry, and business description.
-  Do NOT override or guess -- ALWAYS prefer the provided companyInfo over your own knowledge.
+- **US stocks**: The companyInfo field contains real-time lookup data (Finnhub + Yahoo Finance).
+  When present, use it as ground truth for the company's industry.
   - Example: NVDA → semiconductors, TSLA → new_energy
-  - **If companyInfo is missing for a stock**: you likely do not know this company well enough.
-    Set stock_sentiment to "unknown", confidence to 0.45, and evidence to
-    "无法确认该公司业务". Never invent company names or industries.
+  - **If companyInfo is missing or unreliable**: Infer the company's business from the POST CONTENT.
+    Look for keywords like "semiconductor", "photonics", "chip", "AI", "laser", "battery" etc.
+    The post itself is often the best signal for what industry a stock belongs to.
+    Set confidence=0.55 (slightly lower due to inference vs. confirmed data),
+    evidence="从帖子内容推断行业". Never invent company names.
 - **CN stocks (6-digit codes starting with 00/30/60/68)**: Identify the company → map to its A-share sector.
 - **CN ETFs (6-digit codes starting with 51/15/58)**: Map directly. e.g. 512760 (芯片ETF) → semiconductors
 - **assetType "ETF"** means it's already an ETF — map it directly to its sector.
@@ -323,6 +324,34 @@ function parseJson(answer: string): unknown {
   }
 }
 
+/**
+ * Yahoo Finance search API — free, no key required.
+ * Returns company name and industry for a stock ticker.
+ */
+async function fetchYahooFinanceInfo(
+  ticker: string
+): Promise<{ name?: string; industry?: string } | null> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&quotesCount=1`;
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as {
+      quotes?: { shortname?: string; longname?: string; industry?: string; sector?: string }[];
+    };
+    const quote = data.quotes?.[0];
+    if (!quote) return null;
+    return {
+      name: quote.shortname || quote.longname,
+      industry: quote.industry || quote.sector,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function normalizeSentiment(
   value: string | null | undefined
 ): Sentiment | "unknown" {
@@ -374,7 +403,7 @@ async function loadStockProfiles(
     // Profile data from DB
     let profile = stock.profileData as Record<string, unknown> | null;
 
-    // If no profile in DB, try to fetch on-the-fly
+    // If no profile in DB, try to fetch on-the-fly from Finnhub
     if (!profile && stock.market === "US") {
       try {
         const fetched = await fetchStockProfile({
@@ -382,7 +411,6 @@ async function loadStockProfiles(
           market: normalizeMarket(stock.market),
         });
         if (fetched) {
-          // Save to DB for future use
           await prisma.stock.update({
             where: { id: stock.id },
             data: {
@@ -393,19 +421,25 @@ async function loadStockProfiles(
           }).catch(() => {});
           profile = fetched as unknown as Record<string, unknown>;
         }
-      } catch {
-        // fire-and-forget, don't block if fetch fails
+      } catch {}
+    }
+
+    // If profile is missing or has useless industry, try Yahoo Finance
+    const industry = (profile?.industry as string) || (profile?.sector as string) || "";
+    if ((!industry || industry === "N/A" || industry === "n/a") && stock.market === "US") {
+      const yahooInfo = await fetchYahooFinanceInfo(stock.ticker);
+      if (yahooInfo) {
+        if (yahooInfo.name) parts.push(yahooInfo.name);
+        if (yahooInfo.industry && yahooInfo.industry !== "N/A") {
+          parts.push(`行业: ${yahooInfo.industry}`);
+        }
       }
     }
 
-    if (profile) {
-      const industry =
-        (profile.industry as string) || (profile.sector as string);
+    if (profile && industry && industry !== "N/A" && industry !== "n/a") {
       const desc = profile.description as string;
-      const shortDesc = desc?.split(".")[0]; // first sentence only
-
-      // Only include industry if it's meaningful (not "N/A")
-      if (industry && industry !== "N/A" && industry !== "n/a") {
+      const shortDesc = desc?.split(".")[0];
+      if (!parts.some(p => p.startsWith("行业:"))) {
         parts.push(`行业: ${industry}`);
       }
       if (shortDesc && shortDesc.length > 10) {
